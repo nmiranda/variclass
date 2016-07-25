@@ -3,10 +3,11 @@
 import os
 import pyfits
 #from SF import fitSF_mcmc, Pvar
-#import FATS
-#import numpy as np
+import FATS
+import numpy as np
 import pandas as pd
 import glob
+import argparse
 
 # Lista de features a calcular
 feature_list = [
@@ -40,16 +41,6 @@ feature_list = [
     'CAR_tau',
 ]
 
-class Features(object):
-    
-    def __init__(self):
-        
-        self.u = None
-        self.g = None
-        self.r = None
-        self.i = None
-        self.z = None
-
 class LightCurve(object):
 
     def __init__(self, date, mag, mag_err):
@@ -59,11 +50,49 @@ class LightCurve(object):
         data_dict = {'mag': mag_series, 'mag_err': mag_err_series}
         
         self.series = pd.DataFrame(data_dict)
-        self.features = Features()
+        self.features = dict()
         self.ra = None
         self.dec = None
         self.obj_type = None
         self.zspec = None
+
+    def get_dates(self):
+        return self.series.axes[0].values
+
+    def get_mag(self):
+        return self.series.mag.values
+
+    def get_mag_err(self):
+        return self.series.mag_err.values
+
+    def as_array(self):
+        return np.array([
+            self.get_mag(),
+            self.get_dates(),
+            self.get_mag_err()
+        ])
+
+    def set_features(self, feature_names, feature_values):
+        for this_name, this_value in zip(feature_names, feature_values):
+            self.features[this_name] = this_value
+
+
+class FeatureData(object):
+
+    def __init__(self):
+        self.store = pd.HDFStore('features.h5')
+        self.features = dict()
+
+    def add_features(self, lightcurve):
+        lc_index = (lightcurve.ra, lightcurve.dec)
+        feature_names = lightcurve.features.keys()
+        this_features = dict()
+        for feature_name in feature_names:
+            this_features[feature_name] = lightcurve.features[feature_name]
+        self.features[lc_index] = this_features
+
+    def save_to_store(self):
+        self.store['features'] = pd.DataFrame(self.features)
 
 def load_from_fits(fits_file):
 
@@ -74,18 +103,27 @@ def load_from_fits(fits_file):
     this_lc = LightCurve(fits_data['JD'], fits_data['Q'], fits_data['errQ'])
     this_lc.ra = fits_header['ALPHA']
     this_lc.dec = fits_header['DELTA']
-    this_lc.features.u = fits_header['U']
-    this_lc.features.g = fits_header['G']
-    this_lc.features.r = fits_header['R']
-    this_lc.features.i = fits_header['I']
-    this_lc.features.z = fits_header['Z']
+    this_lc.features['u'] = fits_header['U']
+    this_lc.features['g'] = fits_header['G']
+    this_lc.features['r'] = fits_header['R']
+    this_lc.features['i'] = fits_header['I']
+    this_lc.features['z'] = fits_header['Z']
     this_lc.obj_type = fits_header['TYPE']
     this_lc.zspec = fits_header['ZSPEC']
 
+    return this_lc
+
 def curves_from_dir(folder):
     
-    for fits_file in glob.glob(os.path.join(folder, '*.fits')):
+    #fits_list = list()
+    files = glob.glob(os.path.join(folder, '*.fits'))
+    print "Reading..."
+    for index, fits_file in enumerate(files):
+    #    fits_list.append(load_from_fits(fits_file))
+        print "File [%d/%d] \"%s\"" % (index, len(files), fits_file)
         yield load_from_fits(fits_file)
+    print "Done"
+    #return fits_list
 
 def run_fats(dir_path, filename, x_var, y_var, y_var_err):
 
@@ -127,3 +165,29 @@ def run_fats(dir_path, filename, x_var, y_var, y_var_err):
 
     return fits_features
 
+
+def main():
+
+    data_ids = ['magnitude', 'time', 'error']
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--directory', required=True)
+    args = parser.parse_args()
+
+    feat_space = FATS.FeatureSpace(featureList=feature_list, Data=data_ids)
+    feature_data = FeatureData()
+    
+    for light_curve in curves_from_dir(args.directory):
+        try:
+            feat_vals = feat_space.calculateFeature(light_curve.as_array())
+        except IndexError:
+            continue
+        light_curve.set_features(feat_vals.featureList, feat_vals.result())
+        feature_data.add_features(light_curve)
+    
+    #import ipdb;ipdb.set_trace()
+    feature_data.save_to_store()
+    #import ipdb;ipdb.set_trace()
+
+if __name__ == "__main__":
+    main()
