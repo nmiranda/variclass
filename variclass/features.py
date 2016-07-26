@@ -89,6 +89,8 @@ class FeatureData(object):
         this_features = dict()
         for feature_name in feature_names:
             this_features[feature_name] = lightcurve.features[feature_name]
+        this_features['ZSPEC'] = lightcurve.zspec  
+        this_features['TYPE'] = lightcurve.obj_type 
         self.features[lc_index] = this_features
 
     def save_to_store(self):
@@ -109,9 +111,12 @@ def load_from_fits(fits_file):
     this_lc.features['r'] = fits_header['R']
     this_lc.features['i'] = fits_header['I']
     this_lc.features['z'] = fits_header['Z']
-    this_lc.obj_type = fits_header['TYPE']
-    this_lc.zspec = fits_header['ZSPEC']
-
+    try:
+        this_lc.obj_type = fits_header['TYPE']
+        this_lc.zspec = fits_header['ZSPEC']
+    except KeyError:
+        pass
+    
     return this_lc
 
 def curves_from_dir(folder):
