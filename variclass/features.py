@@ -97,7 +97,7 @@ class FeatureData(object):
         this_frame = pd.DataFrame(self.features).T
         this_frame = this_frame.apply(lambda x: pd.to_numeric(x, errors='ignore'))
         #import ipdb;ipdb.set_trace()
-        self.store.append('features', this_frame, format='table', min_itemsize={'string':8})
+        self.store.append('features', this_frame, format='table', min_itemsize={'TYPE':8})
         self.features = dict()
 
 def load_from_fits(fits_file):
