@@ -94,7 +94,10 @@ class FeatureData(object):
         self.features[lc_index] = this_features
 
     def save_to_store(self):
-        self.store.append('features', pd.DataFrame(self.features).T, format='table')
+        this_frame = pd.DataFrame(self.features).T
+        this_frame = this_frame.apply(lambda x: pd.to_numeric(x, errors='ignore'))
+        #import ipdb;ipdb.set_trace()
+        self.store.append('features', this_frame, format='table')
         self.features = dict()
 
 def load_from_fits(fits_file):
