@@ -79,8 +79,8 @@ class LightCurve(object):
 
 class FeatureData(object):
 
-    def __init__(self):
-        self.store = pd.HDFStore('features.h5')
+    def __init__(self, filename):
+        self.store = pd.HDFStore(filename, format='table')
         self.features = dict()
 
     def add_features(self, lightcurve):
@@ -92,7 +92,8 @@ class FeatureData(object):
         self.features[lc_index] = this_features
 
     def save_to_store(self):
-        self.store['features'] = pd.DataFrame(self.features)
+        self.store.append('features', pd.DataFrame(self.features).T, format='table')
+        self.features = dict()
 
 def load_from_fits(fits_file):
 
@@ -121,7 +122,7 @@ def curves_from_dir(folder):
     for index, fits_file in enumerate(files):
     #    fits_list.append(load_from_fits(fits_file))
         print "File [%d/%d] \"%s\"" % (index, len(files), fits_file)
-        yield load_from_fits(fits_file)
+        yield index, load_from_fits(fits_file)
     print "Done"
     #return fits_list
 
@@ -172,18 +173,22 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--directory', required=True)
+    parser.add_argument('-s', '--store', required=True)
     args = parser.parse_args()
 
     feat_space = FATS.FeatureSpace(featureList=feature_list, Data=data_ids)
-    feature_data = FeatureData()
+    feature_data = FeatureData(args.store)
     
-    for light_curve in curves_from_dir(args.directory):
+    for index, light_curve in curves_from_dir(args.directory):
         try:
             feat_vals = feat_space.calculateFeature(light_curve.as_array())
         except IndexError:
             continue
         light_curve.set_features(feat_vals.featureList, feat_vals.result())
         feature_data.add_features(light_curve)
+        if index % 100 == 0 and index  > 0:
+            #import ipdb;ipdb.set_trace()
+            feature_data.save_to_store()
     
     #import ipdb;ipdb.set_trace()
     feature_data.save_to_store()
