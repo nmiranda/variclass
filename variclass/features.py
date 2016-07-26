@@ -97,7 +97,7 @@ class FeatureData(object):
         this_frame = pd.DataFrame(self.features).T
         this_frame = this_frame.apply(lambda x: pd.to_numeric(x, errors='ignore'))
         #import ipdb;ipdb.set_trace()
-        self.store.append('features', this_frame, format='table')
+        self.store.append('features', this_frame, format='table', min_itemsize={'string':8})
         self.features = dict()
 
 def load_from_fits(fits_file):
@@ -106,7 +106,10 @@ def load_from_fits(fits_file):
     fits_data = this_fits[1].data
     fits_header = this_fits[0].header
 
-    this_lc = LightCurve(fits_data['JD'], fits_data['Q'], fits_data['errQ'])
+    try:
+        this_lc = LightCurve(fits_data['JD'], fits_data['Q'], fits_data['errQ'])
+    except KeyError:
+       raise ValueError("FITS file \"{}\" does not contain light curve data.".format(fits_file)) 
     this_lc.ra = fits_header['ALPHA']
     this_lc.dec = fits_header['DELTA']
     this_lc.features['u'] = fits_header['U']
@@ -130,7 +133,10 @@ def curves_from_dir(folder):
     for index, fits_file in enumerate(files):
     #    fits_list.append(load_from_fits(fits_file))
         print "File [%d/%d] \"%s\"" % (index, len(files), fits_file)
-        yield index, load_from_fits(fits_file)
+        try:
+            yield index, load_from_fits(fits_file)
+        except ValueError as e:
+            print e
     print "Done"
     #return fits_list
 
