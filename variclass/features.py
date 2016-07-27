@@ -100,6 +100,11 @@ class FeatureData(object):
         self.store.append('features', this_frame, format='table', min_itemsize={'TYPE':8})
         self.features = dict()
 
+    def get_features(self, exclude=None):
+        
+        this_features = self.store.features
+        return this_features
+
 def load_from_fits(fits_file):
 
     this_fits = pyfits.open(fits_file)
