@@ -2,7 +2,7 @@
 
 import os
 import pyfits
-#from SF import fitSF_mcmc, Pvar
+from SF import fitSF_mcmc, Pvar
 import FATS
 import numpy as np
 import pandas as pd
@@ -72,7 +72,10 @@ class LightCurve(object):
             self.get_mag_err()
         ])
 
-    def set_features(self, feature_names, feature_values):
+    def set_features(self, feature_names=None, feature_values=None, feature_dict=None):
+        if feature_dict:
+            self.features.update(feature_dict)
+            return
         for this_name, this_value in zip(feature_names, feature_values):
             self.features[this_name] = this_value
 
@@ -199,6 +202,19 @@ def main():
     feature_data = FeatureData(args.store)
     
     for index, light_curve in curves_from_dir(args.directory):
+        
+        #mcmc_vals = fitSF_mcmc(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err(), 2, 250, 500)
+        mcmc_vals = fitSF_mcmc(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err(), 2, 24, 50)
+        A_mcmc = mcmc_vals[0][0]
+        gamma_mcmc = mcmc_vals[1][0]
+        this_pvar = Pvar(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
+        mcmc_vals = {
+            'A_mcmc': A_mcmc,
+            'gamma_mcmc': gamma_mcmc,
+            'pvar': this_pvar,
+            }
+        light_curve.set_features(feature_dict=mcmc_vals)
+
         try:
             feat_vals = feat_space.calculateFeature(light_curve.as_array())
         except IndexError:
