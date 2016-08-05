@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import glob
 import argparse
+import inspect
+import P4J
 
 # Lista de features a calcular
 feature_list = [
@@ -41,6 +43,74 @@ feature_list = [
     'CAR_tau',
 ]
 
+class FeatureMethod(object):
+    def __init__(self):
+        pass
+
+class FATSMethod(FeatureMethod):
+
+    def __init__(self, selected_features=[], data_ids=['magnitude', 'time', 'error']):
+        self.supported_features = list()
+        for name, _ in inspect.getmembers(FATS.FeatureFunctionLib, inspect.isclass):
+            self.supported_features.append(name)
+        self.features = list()
+        for feature in selected_features:
+            if feature in self.supported_features:
+                self.features.append(feature)
+        self.feat_space = FATS.FeatureSpace(featureList=self.features, Data=data_ids)
+
+    def calculate_features(self, light_curve):
+        return self.feat_space.calculateFeature(light_curve.as_array())
+
+class MCMCMethod(FeatureMethod):
+
+    supported_features = [
+            'A_mcmc',
+            'gamma_mcmc',
+            'pvar',
+        ]
+    
+    def __init__(self, selected_features=[]):
+        self.features = list()
+        for feature in selected_features:
+            if feature in supported_features:
+                self.features.append(feature)
+
+    def calculate_features(self, light_curve):
+        return_vals = dict()
+        mcmc_vals = fitSF_mcmc(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err(), 2, 24, 50)
+        if 'A_mcmc' in self.features:
+            return_vals['A_mcmc'] = mcmc_vals[0][0]
+        if 'gamma_mcmc' in self.features:
+            return_vals['gamma_mcmc'] = mcmc_vals[1][0]
+        if 'pvar' in self.features:
+            this_pvar = Pvar(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
+            return_vals['pvar'] = this_pvar
+        return return_vals
+
+class P4JMethod(FeatureMethod):
+
+    supported_features = ['wmcc_bestperiod', 'wmcc_bestfreq']
+    
+    def __init__(self, selected_features=[]):
+        self.features = list()
+        for feature in selected_features:
+            if feature in supported_features:
+                self.features.append()
+
+    def calculate_features(self, light_curve):
+        return_vals = dict()
+        my_per = P4J.periodogram(M=1,  method="WMCC")
+        my_per.fit(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
+        my_per.grid_search(fmin=0.0, fmax=10.0, fres_coarse=1.0, fres_fine=0.1, n_local_max=10)
+        fbest = my_per.get_best_frequency()
+        if 'wmcc_bestperiod' in selected_features:
+            result_vals['wmcc_bestperiod'] = fbest[1]
+        if 'wmcc_bestfreq' in selected_features:
+            result_vals['wmcc_bestfreq'] = fbest[0]
+        return result_vals
+    
+            
 class LightCurve(object):
 
     def __init__(self, date, mag, mag_err):
@@ -198,29 +268,26 @@ def main():
     parser.add_argument('-s', '--store', required=True)
     args = parser.parse_args()
 
-    feat_space = FATS.FeatureSpace(featureList=feature_list, Data=data_ids)
+    fats_method = FATSMethod(feature_list, data_ids)
+    mcmc_method = MCMCMethod(feature_list)
+    p4j_method = P4JMethod(feature_list)
+    
     feature_data = FeatureData(args.store)
     
     for index, light_curve in curves_from_dir(args.directory):
         
         #mcmc_vals = fitSF_mcmc(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err(), 2, 250, 500)
-        mcmc_vals = fitSF_mcmc(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err(), 2, 24, 50)
-        A_mcmc = mcmc_vals[0][0]
-        gamma_mcmc = mcmc_vals[1][0]
-        this_pvar = Pvar(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
-        mcmc_vals = {
-            'A_mcmc': A_mcmc,
-            'gamma_mcmc': gamma_mcmc,
-            'pvar': this_pvar,
-            }
+        mcmc_vals = mcmc_method.calculate_features(light_curve)
         light_curve.set_features(feature_dict=mcmc_vals)
+        
+        fats_vals = fats_method.calculate_features(light_curve)
+        light_curve.set_features(fats_vals.featureList, fats_vals.result())
 
-        try:
-            feat_vals = feat_space.calculateFeature(light_curve.as_array())
-        except IndexError:
-            continue
-        light_curve.set_features(feat_vals.featureList, feat_vals.result())
+        p4j_vals = p4j_method.calculate_features(light_curve)
+        light_curve.set_features(feature_dict=p4j_vals)
+
         feature_data.add_features(light_curve)
+        
         if index % 100 == 0 and index  > 0:
             #import ipdb;ipdb.set_trace()
             feature_data.save_to_store()
