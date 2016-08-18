@@ -218,47 +218,6 @@ def curves_from_dir(folder):
     print "Done"
     #return fits_list
 
-def run_fats(dir_path, filename, x_var, y_var, y_var_err):
-
-    # Variables para indexar y contener features
-    features_keys = feature_list
-    num_features = len(features_keys)
-    key_index = {key: idx for idx, key in enumerate(features_keys)}
-    fits_features = np.zeros(num_features, dtype=np.float64)
-    
-    # Función auxiliar para setear valor del arreglo de features
-    def set_array_val(arr, key, val):
-        arr[key_index[key]] = val
-
-    # Abrir archivo FITS
-    this_fits = pyfits.open(os.path.join(dir_path, filename))
-
-    # Extraer datos de curva de luz
-    fits_data = this_fits[1].data
-    data_array = np.array([fits_data[y_var], fits_data[x_var], fits_data[y_var_err]])
-    data_ids = ['magnitude', 'time', 'error']
-
-    # Correr algoritmos MCMC del script SF.py
-    mcmc_vals = fitSF_mcmc(fits_data['JD'], fits_data['Q'], fits_data['errQ'], 2, 250, 500)
-    A_mcmc = mcmc_vals[0][0]
-    gamma_mcmc = mcmc_vals[1][0]
-    set_array_val(fits_features, 'A', A_mcmc)
-    set_array_val(fits_features, 'gamma', gamma_mcmc)
-
-    this_pvar = Pvar(fits_data[x_var], fits_data[y_var], fits_data[y_var_err])
-    set_array_val(fits_features, 'P', this_pvar)
-
-    # Calcular y guardar features de FATS
-    feat_space = FATS.FeatureSpace(featureList=feature_list, Data=data_ids)
-    feat_vals = feat_space.calculateFeature(data_array)
-    feat_dict = {feat_key: feat_val for feat_key, feat_val in zip(feat_vals.featureList, feat_vals.result())}
-        
-    for feat_key, feat_val in feat_dict.iteritems():
-            set_array_val(fits_features, feat_key, feat_val)
-
-    return fits_features
-
-
 def main():
 
     method_classes = [
