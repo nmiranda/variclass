@@ -175,14 +175,14 @@ class FeatureData(object):
         this_features = self.store.features
         return this_features
 
-def load_from_fits(fits_file):
+def load_from_fits(fits_file, args):
 
     this_fits = pyfits.open(fits_file)
     fits_data = this_fits[1].data
     fits_header = this_fits[0].header
 
     try:
-        this_lc = LightCurve(fits_data['JD'], fits_data['Q'], fits_data['errQ'])
+        this_lc = LightCurve(fits_data[args.date], fits_data[args.magnitude], fits_data[args.error])
     except KeyError:
        raise ValueError("FITS file \"{}\" does not contain light curve data.".format(fits_file)) 
     this_lc.ra = fits_header['ALPHA']
@@ -200,16 +200,16 @@ def load_from_fits(fits_file):
     
     return this_lc
 
-def curves_from_dir(folder):
+def curves_from_dir(args):
     
     #fits_list = list()
-    files = glob.glob(os.path.join(folder, '*.fits'))
+    files = glob.glob(os.path.join(args.directory, '*.fits'))
     print "Reading..."
     for index, fits_file in enumerate(files):
     #    fits_list.append(load_from_fits(fits_file))
         print "File [%d/%d] \"%s\"" % (index, len(files), fits_file)
         try:
-            yield index, load_from_fits(fits_file)
+            yield index, load_from_fits(fits_file, args)
         except ValueError as e:
             print e
     print "Done"
@@ -233,6 +233,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--directory', required=True)
     parser.add_argument('-s', '--store', required=True)
+    parser.add_argument('-m', '--magnitude', required=True)
+    parser.add_argument('-e', '--error', required=True)
+    parser.add_argument('-j', '--date', required=True)
+    
     args = parser.parse_args()
 
     manager = Manager()
@@ -242,7 +246,7 @@ def main():
     
     feature_data = FeatureData(args.store)
     
-    for index, light_curve in curves_from_dir(args.directory):
+    for index, light_curve in curves_from_dir(args):
 
         shared_dict = manager.dict()
         for method in methods:
