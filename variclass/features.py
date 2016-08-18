@@ -261,40 +261,33 @@ def run_fats(dir_path, filename, x_var, y_var, y_var_err):
 
 def main():
 
-    data_ids = ['magnitude', 'time', 'error']
+    method_classes = [
+            FATSMethod,
+            MCMCMethod,
+            P4JMethod,
+            ]
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--directory', required=True)
     parser.add_argument('-s', '--store', required=True)
     args = parser.parse_args()
 
-    fats_method = FATSMethod(feature_list, data_ids)
-    mcmc_method = MCMCMethod(feature_list)
-    p4j_method = P4JMethod(feature_list)
+    methods = [method_class(feature_list) for method_class in method_classes]
     
     feature_data = FeatureData(args.store)
     
     for index, light_curve in curves_from_dir(args.directory):
-        
-        #mcmc_vals = fitSF_mcmc(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err(), 2, 250, 500)
-        mcmc_vals = mcmc_method.calculate_features(light_curve)
-        light_curve.set_features(feature_dict=mcmc_vals)
-        
-        fats_vals = fats_method.calculate_features(light_curve)
-        light_curve.set_features(feature_dict=fats_vals)
 
-        p4j_vals = p4j_method.calculate_features(light_curve)
-        light_curve.set_features(feature_dict=p4j_vals)
+        for method in methods:
+            this_method_vals = method.calculate_features(light_curve)
+            light_curve.set_features(this_method_vals)
 
         feature_data.add_features(light_curve)
         
         if index % 100 == 0 and index  > 0:
-            #import ipdb;ipdb.set_trace()
             feature_data.save_to_store()
     
-    #import ipdb;ipdb.set_trace()
     feature_data.save_to_store()
-    #import ipdb;ipdb.set_trace()
 
 if __name__ == "__main__":
     main()
