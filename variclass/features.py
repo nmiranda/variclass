@@ -10,6 +10,7 @@ import glob
 import argparse
 import inspect
 import P4J
+from multiprocessing import Process, Manager
 
 # Lista de features a calcular
 feature_list = [
@@ -142,13 +143,9 @@ class LightCurve(object):
             self.get_mag_err()
         ])
 
-    def set_features(self, feature_names=None, feature_values=None, feature_dict=None):
+    def set_features(self, feature_dict=None):
         if feature_dict:
             self.features.update(feature_dict)
-            return
-        for this_name, this_value in zip(feature_names, feature_values):
-            self.features[this_name] = this_value
-
 
 class FeatureData(object):
 
@@ -218,18 +215,28 @@ def curves_from_dir(folder):
     print "Done"
     #return fits_list
 
-def main():
+def multi_calc_features(shared_dict, light_curve, method):
 
+    this_method_vals = method.calculate_features(light_curve)
+    shared_dict.update(this_method_vals)
+
+def main():
+    
     method_classes = [
             FATSMethod,
             MCMCMethod,
             P4JMethod,
             ]
 
+    NUMBER_OF_PROCESSES = len(Method_classes)
+
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--directory', required=True)
     parser.add_argument('-s', '--store', required=True)
     args = parser.parse_args()
+
+    manager = Manager()
+    processes = list()
 
     methods = [method_class(feature_list) for method_class in method_classes]
     
@@ -237,10 +244,17 @@ def main():
     
     for index, light_curve in curves_from_dir(args.directory):
 
+        shared_dict = manager.dict()
         for method in methods:
-            this_method_vals = method.calculate_features(light_curve)
-            light_curve.set_features(this_method_vals)
 
+            this_proc = Process(target=multi_calc_features, args=(shared_dict, light_curve, method))
+            this_proc.start()
+            processes.append(this_proc)
+       
+        for process in processes:
+            process.join()
+        
+        light_curve.set_features(shared_dict)
         feature_data.add_features(light_curve)
         
         if index % 100 == 0 and index  > 0:
