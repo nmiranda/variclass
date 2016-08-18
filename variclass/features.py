@@ -61,7 +61,10 @@ class FATSMethod(FeatureMethod):
         self.feat_space = FATS.FeatureSpace(featureList=self.features, Data=data_ids)
 
     def calculate_features(self, light_curve):
-        return self.feat_space.calculateFeature(light_curve.as_array()).result(method='dict')
+        try:
+            return self.feat_space.calculateFeature(light_curve.as_array()).result(method='dict')
+        except IndexError:
+            pass
 
 class MCMCMethod(FeatureMethod):
 
@@ -71,8 +74,8 @@ class MCMCMethod(FeatureMethod):
             'pvar',
         ]
     
-    def __init__(self, selected_features=[]):
-        self.features = list()
+    def __init__(self, selected_features=supported_features):
+        self.selected_features = selected_features
         for feature in selected_features:
             if feature in self.supported_features:
                 self.features.append(feature)
@@ -80,11 +83,11 @@ class MCMCMethod(FeatureMethod):
     def calculate_features(self, light_curve):
         return_vals = dict()
         mcmc_vals = fitSF_mcmc(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err(), 2, 24, 50)
-        if 'A_mcmc' in self.features:
+        if 'A_mcmc' in self.selected_features:
             return_vals['A_mcmc'] = mcmc_vals[0][0]
-        if 'gamma_mcmc' in self.features:
+        if 'gamma_mcmc' in self.selected_features:
             return_vals['gamma_mcmc'] = mcmc_vals[1][0]
-        if 'pvar' in self.features:
+        if 'pvar' in self.selected_features:
             this_pvar = Pvar(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
             return_vals['pvar'] = this_pvar
         return return_vals
@@ -93,7 +96,8 @@ class P4JMethod(FeatureMethod):
 
     supported_features = ['wmcc_bestperiod', 'wmcc_bestfreq']
     
-    def __init__(self, selected_features=[]):
+    def __init__(self, selected_features=supported_features):
+        self.selected_features = selected_features
         self.features = list()
         for feature in selected_features:
             if feature in self.supported_features:
@@ -105,11 +109,11 @@ class P4JMethod(FeatureMethod):
         my_per.fit(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
         my_per.grid_search(fmin=0.0, fmax=10.0, fres_coarse=1.0, fres_fine=0.1, n_local_max=10)
         fbest = my_per.get_best_frequency()
-        if 'wmcc_bestperiod' in selected_features:
+        if 'wmcc_bestperiod' in self.selected_features:
             result_vals['wmcc_bestperiod'] = fbest[1]
-        if 'wmcc_bestfreq' in selected_features:
+        if 'wmcc_bestfreq' in self.selected_features:
             result_vals['wmcc_bestfreq'] = fbest[0]
-        return result_vals
+        return return_vals
     
             
 class LightCurve(object):
@@ -187,11 +191,11 @@ def load_from_fits(fits_file, args):
        raise ValueError("FITS file \"{}\" does not contain light curve data.".format(fits_file)) 
     this_lc.ra = fits_header['ALPHA']
     this_lc.dec = fits_header['DELTA']
-    this_lc.features['u'] = fits_header['U']
-    this_lc.features['g'] = fits_header['G']
-    this_lc.features['r'] = fits_header['R']
-    this_lc.features['i'] = fits_header['I']
-    this_lc.features['z'] = fits_header['Z']
+    #this_lc.features['u'] = fits_header['U']
+    #this_lc.features['g'] = fits_header['G']
+    #this_lc.features['r'] = fits_header['R']
+    #this_lc.features['i'] = fits_header['I']
+    #this_lc.features['z'] = fits_header['Z']
     try:
         this_lc.obj_type = fits_header['TYPE']
         this_lc.zspec = fits_header['ZSPEC']
