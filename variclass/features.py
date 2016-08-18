@@ -74,7 +74,7 @@ class MCMCMethod(FeatureMethod):
     def __init__(self, selected_features=[]):
         self.features = list()
         for feature in selected_features:
-            if feature in supported_features:
+            if feature in self.supported_features:
                 self.features.append(feature)
 
     def calculate_features(self, light_curve):
@@ -96,7 +96,7 @@ class P4JMethod(FeatureMethod):
     def __init__(self, selected_features=[]):
         self.features = list()
         for feature in selected_features:
-            if feature in supported_features:
+            if feature in self.supported_features:
                 self.features.append()
 
     def calculate_features(self, light_curve):
@@ -228,7 +228,7 @@ def main():
             P4JMethod,
             ]
 
-    NUMBER_OF_PROCESSES = len(Method_classes)
+    NUMBER_OF_PROCESSES = len(method_classes)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--directory', required=True)
