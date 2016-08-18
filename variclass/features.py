@@ -60,7 +60,7 @@ class FATSMethod(FeatureMethod):
         self.feat_space = FATS.FeatureSpace(featureList=self.features, Data=data_ids)
 
     def calculate_features(self, light_curve):
-        return self.feat_space.calculateFeature(light_curve.as_array())
+        return self.feat_space.calculateFeature(light_curve.as_array()).result(method='dict')
 
 class MCMCMethod(FeatureMethod):
 
@@ -281,7 +281,7 @@ def main():
         light_curve.set_features(feature_dict=mcmc_vals)
         
         fats_vals = fats_method.calculate_features(light_curve)
-        light_curve.set_features(fats_vals.featureList, fats_vals.result())
+        light_curve.set_features(feature_dict=fats_vals)
 
         p4j_vals = p4j_method.calculate_features(light_curve)
         light_curve.set_features(feature_dict=p4j_vals)
