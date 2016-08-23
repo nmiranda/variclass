@@ -127,6 +127,9 @@ class LightCurve(object):
         self.obj_type = None
         self.zspec = None
 
+    def __str__(self):
+        return "LightCurve(ra=%s, dec=%s, len=%s)" % (self.ra, self.dec, self.series.size)
+
     def get_dates(self):
         return self.series.axes[0].values
 
@@ -153,13 +156,17 @@ class FeatureData(object):
         self.store = pd.HDFStore(filename, format='table')
         self.features = dict()
 
+    def add_light_curves(lightcurves):
+        for lightcurve in lightcurves:
+            self.add_features(lightcurve)
+
     def add_features(self, lightcurve):
-        lc_index = (lightcurve.ra, lightcurve.dec)
+        lc_index = (str(lightcurve.ra), str(lightcurve.dec))
         feature_names = lightcurve.features.keys()
         this_features = dict()
         for feature_name in feature_names:
             this_features[feature_name] = lightcurve.features[feature_name]
-        this_features['ZSPEC'] = lightcurve.zspec  
+        this_features['ZSPEC'] = lightcurve.zspec
         this_features['TYPE'] = lightcurve.obj_type 
         self.features[lc_index] = this_features
 
@@ -171,7 +178,6 @@ class FeatureData(object):
         self.features = dict()
 
     def get_features(self, exclude=None):
-        
         this_features = self.store.features
         return this_features
 
@@ -215,11 +221,6 @@ def curves_from_dir(folder):
     print "Done"
     #return fits_list
 
-def multi_calc_features(shared_dict, light_curve, method):
-
-    this_method_vals = method.calculate_features(light_curve)
-    shared_dict.update(this_method_vals)
-
 def main():
     
     method_classes = [
@@ -228,15 +229,10 @@ def main():
             P4JMethod,
             ]
 
-    NUMBER_OF_PROCESSES = len(Method_classes)
-
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--directory', required=True)
     parser.add_argument('-s', '--store', required=True)
     args = parser.parse_args()
-
-    manager = Manager()
-    processes = list()
 
     methods = [method_class(feature_list) for method_class in method_classes]
     
@@ -244,19 +240,11 @@ def main():
     
     for index, light_curve in curves_from_dir(args.directory):
 
-        shared_dict = manager.dict()
         for method in methods:
 
-            this_proc = Process(target=multi_calc_features, args=(shared_dict, light_curve, method))
-            this_proc.start()
-            processes.append(this_proc)
-       
-        for process in processes:
-            process.join()
-        
-        light_curve.set_features(shared_dict)
-        feature_data.add_features(light_curve)
-        
+            light_curve.set_features(method.calculate_features(light_curve))
+            feature_data.add_features(light_curve)
+            
         if index % 100 == 0 and index  > 0:
             feature_data.save_to_store()
     
