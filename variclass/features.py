@@ -10,7 +10,10 @@ import glob
 import argparse
 import inspect
 import P4J
-from multiprocessing import Process, Manager
+from pathos.multiprocessing import ProcessingPool as Pool
+from pgram_func2 import get_period_sigf
+import carmcmc as cm
+import itertools
 
 # Lista de features a calcular
 feature_list = [
@@ -42,6 +45,17 @@ feature_list = [
     'CAR_sigma',
     'CAR_mean',
     'CAR_tau',
+    'A_mcmc',
+    'gamma_mcmc',
+    'pvar',
+    'wmcc_bestperiod', 
+    'wmcc_bestfreq',
+    'pg_best_period', 
+    'pg_peak', 
+    'pg_sig5', 
+    'pg_sig1',
+    'tau_mc', 
+    'sigma_mc',
 ]
 
 class FeatureMethod(object):
@@ -74,7 +88,7 @@ class MCMCMethod(FeatureMethod):
     def __init__(self, selected_features=[]):
         self.features = list()
         for feature in selected_features:
-            if feature in supported_features:
+            if feature in self.supported_features:
                 self.features.append(feature)
 
     def calculate_features(self, light_curve):
@@ -93,11 +107,11 @@ class P4JMethod(FeatureMethod):
 
     supported_features = ['wmcc_bestperiod', 'wmcc_bestfreq']
     
-    def __init__(self, selected_features=[]):
+    def __init__(self, selected_features=supported_features):
         self.features = list()
         for feature in selected_features:
-            if feature in supported_features:
-                self.features.append()
+            if feature in self.supported_features:
+                self.features.append(feature)
 
     def calculate_features(self, light_curve):
         return_vals = dict()
@@ -105,12 +119,58 @@ class P4JMethod(FeatureMethod):
         my_per.fit(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
         my_per.grid_search(fmin=0.0, fmax=10.0, fres_coarse=1.0, fres_fine=0.1, n_local_max=10)
         fbest = my_per.get_best_frequency()
-        if 'wmcc_bestperiod' in selected_features:
-            result_vals['wmcc_bestperiod'] = fbest[1]
-        if 'wmcc_bestfreq' in selected_features:
-            result_vals['wmcc_bestfreq'] = fbest[0]
-        return result_vals
-    
+        if 'wmcc_bestperiod' in self.features:
+            return_vals['wmcc_bestperiod'] = fbest[1]
+        if 'wmcc_bestfreq' in self.features:
+            return_vals['wmcc_bestfreq'] = fbest[0]
+        return return_vals
+
+class PeriodgramMethod(FeatureMethod):
+
+    supported_features = ['pg_best_period', 'pg_peak', 'pg_sig5', 'pg_sig1']
+
+    def __init__(self, selected_features=supported_features):
+        self.features = list()
+        for feature in selected_features:
+            if feature in self.supported_features:
+                self.features.append(feature)
+
+    def calculate_features(self, light_curve):
+        return_vals = dict()
+        best_period, peak, sig5, sig1 = get_period_sigf(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
+        return_vals[self.supported_features[0]] = best_period
+        return_vals[self.supported_features[1]] = peak
+        return_vals[self.supported_features[2]] = sig5
+        return_vals[self.supported_features[3]] = sig1
+        return return_vals
+
+class CARMCMCMethod(FeatureMethod):
+
+    supported_features = ['tau_mc', 'sigma_mc']
+
+    def __init__(self, selected_features=supported_features):
+        self.features = list()
+        for feature in selected_features:
+            if feature in self.supported_features:
+                self.features.append(feature)
+
+    def calculate_features(self, light_curve):
+        jd = light_curve.get_dates()
+        mag = light_curve.get_mag()
+        errmag = light_curve.get_mag_err()
+        z = light_curve.zspec
+
+#        import ipdb;ipdb.set_trace()
+        model = cm.CarmaModel(jd/(1+z), mag, errmag, p=1, q=0)
+        sample = model.run_mcmc(20000)
+        log_omega=sample.get_samples('log_omega')
+        tau=np.exp(-1.0*log_omega)
+        sigma=sample.get_samples('sigma')
+        tau_mc=(np.percentile(tau, 50),np.percentile(tau, 50)-np.percentile(tau, 15.865),np.percentile(tau, 84.135)-np.percentile(tau, 50))
+        sigma_mc=(np.percentile(sigma, 50),np.percentile(tau, 50)-np.percentile(sigma, 15.865),np.percentile(sigma, 84.135)-np.percentile(sigma, 50))
+        return_vals = {self.supported_features[0]: tau_mc, self.supported_features[1]: sigma_mc}
+        
+        return return_vals
             
 class LightCurve(object):
 
@@ -127,7 +187,7 @@ class LightCurve(object):
         self.obj_type = None
         self.zspec = None
 
-    def __str__(self):
+    def __repr__(self):
         return "LightCurve(ra=%s, dec=%s, len=%s)" % (self.ra, self.dec, self.series.size)
 
     def get_dates(self):
@@ -156,7 +216,7 @@ class FeatureData(object):
         self.store = pd.HDFStore(filename, format='table')
         self.features = dict()
 
-    def add_light_curves(lightcurves):
+    def add_light_curves(self, lightcurves):
         for lightcurve in lightcurves:
             self.add_features(lightcurve)
 
@@ -222,11 +282,13 @@ def curves_from_dir(folder):
     print "Done"
     return fits_list
 
-def calc_features(light_curve, methods)
-
+def calc_features(light_curve, methods):
     for method in methods:
         light_curve.set_features(method.calculate_features(light_curve))
     return light_curve
+
+def calc_feat_wrapper(args):
+    return calc_features(*args)
 
 def main():
     
@@ -234,6 +296,8 @@ def main():
             FATSMethod,
             MCMCMethod,
             P4JMethod,
+            PeriodgramMethod,
+#            CARMCMCMethod,
             ]
 
     parser = argparse.ArgumentParser()
@@ -251,11 +315,11 @@ def main():
     
     light_curves = curves_from_dir(args.directory)
 
-    proc_pool.map(lambda x: calc_features(x, methods), light_curves)
+    res_light_curves = proc_pool.map(calc_feat_wrapper, itertools.izip(light_curves, itertools.repeat(methods)))
     proc_pool.close()
     proc_pool.join()
 
-    feature_data.add_light_curves(light_curves)
+    feature_data.add_light_curves(res_light_curves)
              
     feature_data.save_to_store()
 
