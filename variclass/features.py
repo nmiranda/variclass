@@ -208,18 +208,25 @@ def load_from_fits(fits_file):
 
 def curves_from_dir(folder):
     
-    #fits_list = list()
+    fits_list = list()
     files = glob.glob(os.path.join(folder, '*.fits'))
     print "Reading..."
     for index, fits_file in enumerate(files):
     #    fits_list.append(load_from_fits(fits_file))
         print "File [%d/%d] \"%s\"" % (index, len(files), fits_file)
         try:
-            yield index, load_from_fits(fits_file)
+            #yield index, load_from_fits(fits_file)
+            fits_list.append(load_from_fits(fits_file))
         except ValueError as e:
             print e
     print "Done"
-    #return fits_list
+    return fits_list
+
+def calc_features(light_curve, methods)
+
+    for method in methods:
+        light_curve.set_features(method.calculate_features(light_curve))
+    return light_curve
 
 def main():
     
@@ -232,22 +239,24 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--directory', required=True)
     parser.add_argument('-s', '--store', required=True)
+    parser.add_argument('-n', '--num_cores', required=True)
+
     args = parser.parse_args()
 
     methods = [method_class(feature_list) for method_class in method_classes]
     
     feature_data = FeatureData(args.store)
-    
-    for index, light_curve in curves_from_dir(args.directory):
 
-        for method in methods:
-
-            light_curve.set_features(method.calculate_features(light_curve))
-            feature_data.add_features(light_curve)
-            
-        if index % 100 == 0 and index  > 0:
-            feature_data.save_to_store()
+    proc_pool = Pool(processes=int(args.num_cores))
     
+    light_curves = curves_from_dir(args.directory)
+
+    proc_pool.map(lambda x: calc_features(x, methods), light_curves)
+    proc_pool.close()
+    proc_pool.join()
+
+    feature_data.add_light_curves(light_curves)
+             
     feature_data.save_to_store()
 
 if __name__ == "__main__":
