@@ -241,23 +241,24 @@ class FeatureData(object):
         this_features = self.store.features
         return this_features
 
-def load_from_fits(fits_file):
+def load_from_fits(fits_file, args):
 
     this_fits = pyfits.open(fits_file)
     fits_data = this_fits[1].data
     fits_header = this_fits[0].header
 
     try:
-        this_lc = LightCurve(fits_data['JD'], fits_data['Q'], fits_data['errQ'])
+#        this_lc = LightCurve(fits_data['JD'], fits_data['Q'], fits_data['errQ'])
+        this_lc = LightCurve(fits_data[args.dates], fits_data[args.mag], fits_data[args.mag_err])
     except KeyError:
-       raise ValueError("FITS file \"{}\" does not contain light curve data.".format(fits_file)) 
+       raise ValueError("FITS file \"{}\" data does not contain specified values. Please check.".format(fits_file)) 
     this_lc.ra = fits_header['ALPHA']
     this_lc.dec = fits_header['DELTA']
-    this_lc.features['u'] = fits_header['U']
-    this_lc.features['g'] = fits_header['G']
-    this_lc.features['r'] = fits_header['R']
-    this_lc.features['i'] = fits_header['I']
-    this_lc.features['z'] = fits_header['Z']
+#    this_lc.features['u'] = fits_header['U']
+#    this_lc.features['g'] = fits_header['G']
+#    this_lc.features['r'] = fits_header['R']
+#    this_lc.features['i'] = fits_header['I']
+#    this_lc.features['z'] = fits_header['Z']
     try:
         this_lc.obj_type = fits_header['TYPE']
         this_lc.zspec = fits_header['ZSPEC']
@@ -266,17 +267,15 @@ def load_from_fits(fits_file):
     
     return this_lc
 
-def curves_from_dir(folder):
+def curves_from_dir(args):
     
     fits_list = list()
-    files = glob.glob(os.path.join(folder, '*.fits'))
+    files = glob.glob(os.path.join(args.folder, '*.fits'))
     print "Reading..."
     for index, fits_file in enumerate(files):
-    #    fits_list.append(load_from_fits(fits_file))
         print "File [%d/%d] \"%s\"" % (index, len(files), fits_file)
         try:
-            #yield index, load_from_fits(fits_file)
-            fits_list.append(load_from_fits(fits_file))
+            fits_list.append(load_from_fits(fits_file, args))
         except ValueError as e:
             print e
     print "Done"
@@ -297,13 +296,16 @@ def main():
             MCMCMethod,
             P4JMethod,
             PeriodgramMethod,
-#            CARMCMCMethod,
+            CARMCMCMethod,
             ]
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--directory', required=True)
+    parser.add_argument('-f', '--folder', required=True)
     parser.add_argument('-s', '--store', required=True)
     parser.add_argument('-n', '--num_cores', required=True)
+    parser.add_argument('-d', '--dates', required=True)
+    parser.add_argument('-m', '--mag', required=True)
+    parser.add_argument('-e', '--mag_err', required=True)
 
     args = parser.parse_args()
 
@@ -313,7 +315,7 @@ def main():
 
     proc_pool = Pool(processes=int(args.num_cores))
     
-    light_curves = curves_from_dir(args.directory)
+    light_curves = curves_from_dir(args)
 
     res_light_curves = proc_pool.map(calc_feat_wrapper, itertools.izip(light_curves, itertools.repeat(methods)))
     proc_pool.close()
