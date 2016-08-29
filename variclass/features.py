@@ -2,7 +2,7 @@
 
 import os
 import pyfits
-from paula_features import fitSF_mcmc, var_parameters
+from SF import fitSF_mcmc, Pvar
 import FATS
 import numpy as np
 import pandas as pd
@@ -47,18 +47,19 @@ feature_list = [
     'CAR_tau',
     'A_mcmc',
     'gamma_mcmc',
-    'wmcc_bestperiod',
+    'wmcc_bestperiod', 
     'wmcc_bestfreq',
-    'pg_best_period',
-    'pg_peak',
-    'pg_sig5',
+    'pg_best_period', 
+    'pg_peak', 
+    'pg_sig5', 
     'pg_sig1',
-    'tau_mc',
+    'tau_mc', 
     'sigma_mc',
     'pvar',
     'ex_var',
     'ex_var_err',
 ]
+
 
 class FeatureMethod(object):
     def __init__(self):
@@ -84,8 +85,9 @@ class MCMCMethod(FeatureMethod):
     supported_features = [
             'A_mcmc',
             'gamma_mcmc',
+            'pvar',
         ]
-
+    
     def __init__(self, selected_features=[]):
         self.features = list()
         for feature in selected_features:
@@ -99,12 +101,15 @@ class MCMCMethod(FeatureMethod):
             return_vals['A_mcmc'] = mcmc_vals[0][0]
         if 'gamma_mcmc' in self.features:
             return_vals['gamma_mcmc'] = mcmc_vals[1][0]
+        if 'pvar' in self.features:
+            this_pvar = Pvar(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
+            return_vals['pvar'] = this_pvar
         return return_vals
 
 class P4JMethod(FeatureMethod):
 
     supported_features = ['wmcc_bestperiod', 'wmcc_bestfreq']
-
+    
     def __init__(self, selected_features=supported_features):
         self.features = list()
         for feature in selected_features:
@@ -167,8 +172,9 @@ class CARMCMCMethod(FeatureMethod):
         tau_mc=(np.percentile(tau, 50),np.percentile(tau, 50)-np.percentile(tau, 15.865),np.percentile(tau, 84.135)-np.percentile(tau, 50))
         sigma_mc=(np.percentile(sigma, 50),np.percentile(tau, 50)-np.percentile(sigma, 15.865),np.percentile(sigma, 84.135)-np.percentile(sigma, 50))
         return_vals = {self.supported_features[0]: tau_mc, self.supported_features[1]: sigma_mc}
-
+        
         return return_vals
+
 
 class PaulaMethod(FeatureMethod):
 
@@ -180,6 +186,7 @@ class PaulaMethod(FeatureMethod):
             if feature in self.supported_features:
                 self.features.append(feature)
 
+
     def calculate_features(self, light_curve):
         vals = var_parameters(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
         return {
@@ -187,15 +194,15 @@ class PaulaMethod(FeatureMethod):
             supported_features[1]: vals[1],
             supported_features[2]: vals[2],
             }
-
+            
 class LightCurve(object):
 
     def __init__(self, date, mag, mag_err):
-
+        
         mag_series = pd.Series(mag, index=date)
         mag_err_series = pd.Series(mag_err, index=date)
         data_dict = {'mag': mag_series, 'mag_err': mag_err_series}
-
+        
         self.series = pd.DataFrame(data_dict)
         self.features = dict()
         self.ra = None
@@ -243,7 +250,7 @@ class FeatureData(object):
         for feature_name in feature_names:
             this_features[feature_name] = lightcurve.features[feature_name]
         this_features['ZSPEC'] = lightcurve.zspec
-        this_features['TYPE'] = lightcurve.obj_type
+        this_features['TYPE'] = lightcurve.obj_type 
         self.features[lc_index] = this_features
 
     def save_to_store(self):
@@ -267,7 +274,7 @@ def load_from_fits(fits_file, args):
 #        this_lc = LightCurve(fits_data['JD'], fits_data['Q'], fits_data['errQ'])
         this_lc = LightCurve(fits_data[args.dates], fits_data[args.mag], fits_data[args.mag_err])
     except KeyError:
-       raise ValueError("FITS file \"{}\" data does not contain specified values. Please check.".format(fits_file))
+       raise ValueError("FITS file \"{}\" data does not contain specified values. Please check.".format(fits_file)) 
     this_lc.ra = fits_header['ALPHA']
     this_lc.dec = fits_header['DELTA']
 #    this_lc.features['u'] = fits_header['U']
@@ -280,11 +287,11 @@ def load_from_fits(fits_file, args):
         this_lc.zspec = fits_header['ZSPEC']
     except KeyError:
         pass
-
+    
     return this_lc
 
 def curves_from_dir(args):
-
+    
     fits_list = list()
     files = glob.glob(os.path.join(args.folder, '*.fits'))
     print "Reading..."
@@ -306,7 +313,7 @@ def calc_feat_wrapper(args):
     return calc_features(*args)
 
 def main():
-
+    
     method_classes = [
             FATSMethod,
             MCMCMethod,
@@ -326,11 +333,11 @@ def main():
     args = parser.parse_args()
 
     methods = [method_class(feature_list) for method_class in method_classes]
-
+    
     feature_data = FeatureData(args.store)
 
     proc_pool = Pool(processes=int(args.num_cores))
-
+    
     light_curves = curves_from_dir(args)
 
     res_light_curves = proc_pool.map(calc_feat_wrapper, itertools.izip(light_curves, itertools.repeat(methods)))
@@ -338,7 +345,7 @@ def main():
     proc_pool.join()
 
     feature_data.add_light_curves(res_light_curves)
-
+             
     feature_data.save_to_store()
 
 if __name__ == "__main__":
