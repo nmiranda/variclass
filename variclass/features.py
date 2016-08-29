@@ -10,8 +10,8 @@ import glob
 import argparse
 import inspect
 import P4J
-from pathos.multiprocessing import ProcessingPool as Pool
 from pgram_func2 import get_period_sigf
+from pathos.multiprocessing import ProcessingPool as Pool
 import carmcmc as cm
 import itertools
 
@@ -309,13 +309,10 @@ def calc_features(light_curve, methods):
         light_curve.set_features(method.calculate_features(light_curve))
     return light_curve
 
-def calc_feat_wrapper(args):
-    return calc_features(*args)
-
 def main():
     
     method_classes = [
-            FATSMethod,
+            #FATSMethod,
             MCMCMethod,
             P4JMethod,
             PeriodgramMethod,
@@ -325,7 +322,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--folder', required=True)
     parser.add_argument('-s', '--store', required=True)
-    parser.add_argument('-n', '--num_cores', required=True)
+    parser.add_argument('-n', '--num_cores', nargs='?', type=int, default=1)
     parser.add_argument('-d', '--dates', required=True)
     parser.add_argument('-m', '--mag', required=True)
     parser.add_argument('-e', '--mag_err', required=True)
@@ -335,14 +332,17 @@ def main():
     methods = [method_class(feature_list) for method_class in method_classes]
     
     feature_data = FeatureData(args.store)
-
-    proc_pool = Pool(processes=int(args.num_cores))
     
     light_curves = curves_from_dir(args)
 
-    res_light_curves = proc_pool.map(calc_feat_wrapper, itertools.izip(light_curves, itertools.repeat(methods)))
-    proc_pool.close()
-    proc_pool.join()
+    if args.num_cores > 1:
+        proc_pool = Pool(processes=int(args.num_cores))
+        res_light_curves = proc_pool.map(calc_features, light_curves, itertools.repeat(methods))
+        proc_pool.close()
+        proc_pool.join()
+
+    elif args.num_cores == 1:
+        res_light_curves = map(calc_features, light_curves, itertools.repeat(methods))
 
     feature_data.add_light_curves(res_light_curves)
              
