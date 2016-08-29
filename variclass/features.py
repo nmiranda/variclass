@@ -163,7 +163,8 @@ class CARMCMCMethod(FeatureMethod):
         errmag = light_curve.get_mag_err()
         z = light_curve.zspec
 
-#        import ipdb;ipdb.set_trace()
+        import ipdb;ipdb.set_trace()
+        
         model = cm.CarmaModel(jd/(1+z), mag, errmag, p=1, q=0)
         sample = model.run_mcmc(20000)
         log_omega=sample.get_samples('log_omega')
@@ -284,16 +285,18 @@ def load_from_fits(fits_file, args):
 #    this_lc.features['z'] = fits_header['Z']
     try:
         this_lc.obj_type = fits_header['TYPE']
+    except KeyError:
+        pass
+    try:
         this_lc.zspec = fits_header['ZSPEC']
     except KeyError:
         pass
-    
     return this_lc
 
 def curves_from_dir(args):
     
     fits_list = list()
-    files = glob.glob(os.path.join(args.folder, '*.fits'))
+    files = glob.glob(os.path.join(args.folder, 'agn_*.fits'))
     print "Reading..."
     for index, fits_file in enumerate(files):
         print "File [%d/%d] \"%s\"" % (index, len(files), fits_file)
