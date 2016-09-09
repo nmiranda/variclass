@@ -118,16 +118,19 @@ class P4JMethod(FeatureMethod):
 
     def calculate_features(self, light_curve):
         return_vals = dict()
-        my_per = P4J.periodogram(M=1,  method="WMCC")
-        my_per.fit(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
-        my_per.grid_search(fmin=0.0, fmax=10.0, fres_coarse=1.0, fres_fine=0.1, n_local_max=10)
-        fbest = my_per.get_best_frequency()
-        if 'wmcc_bestperiod' in self.features:
-            return_vals['wmcc_bestperiod'] = fbest[1]
-        if 'wmcc_bestfreq' in self.features:
-            return_vals['wmcc_bestfreq'] = fbest[0]
+        try:
+            my_per = P4J.periodogram(M=1,  method="WMCC")
+            my_per.fit(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
+            my_per.grid_search(fmin=0.0, fmax=10.0, fres_coarse=1.0, fres_fine=0.1, n_local_max=10)
+            fbest = my_per.get_best_frequency()
+            if 'wmcc_bestperiod' in self.features:
+                return_vals['wmcc_bestperiod'] = fbest[1]
+            if 'wmcc_bestfreq' in self.features:
+                return_vals['wmcc_bestfreq'] = fbest[0]
+        except np.linalg.linalg.LinAlgError:
+            pass
         return return_vals
-
+            
 class PeriodgramMethod(FeatureMethod):
 
     supported_features = ['pg_best_period', 'pg_peak', 'pg_sig5', 'pg_sig1']
@@ -163,7 +166,7 @@ class CARMCMCMethod(FeatureMethod):
         errmag = light_curve.get_mag_err()
         z = light_curve.zspec
 
-        import ipdb;ipdb.set_trace()
+        #import ipdb;ipdb.set_trace()
         
         model = cm.CarmaModel(jd/(1+z), mag, errmag, p=1, q=0)
         sample = model.run_mcmc(20000)
@@ -299,7 +302,7 @@ def curves_from_dir(args):
     files = glob.glob(os.path.join(args.folder, 'agn_*.fits'))
     print "Reading..."
     for index, fits_file in enumerate(files):
-        print "File [%d/%d] \"%s\"" % (index, len(files), fits_file)
+        print "file [%d/%d] \"%s\"" % (index, len(files), fits_file)
         try:
             fits_list.append(load_from_fits(fits_file, args))
         except ValueError as e:
@@ -308,8 +311,11 @@ def curves_from_dir(args):
     return fits_list
 
 def calc_features(light_curve, methods):
+    print "Processing \"%s\"..." % light_curve
     for method in methods:
         light_curve.set_features(method.calculate_features(light_curve))
+    print "Done \"%s\"." % light_curve
+
     return light_curve
 
 def main():
