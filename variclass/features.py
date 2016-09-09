@@ -278,7 +278,7 @@ def load_from_fits(fits_file, args):
 #        this_lc = LightCurve(fits_data['JD'], fits_data['Q'], fits_data['errQ'])
         this_lc = LightCurve(fits_data[args.dates], fits_data[args.mag], fits_data[args.mag_err])
     except KeyError:
-       raise ValueError("FITS file \"{}\" data does not contain specified values. Please check.".format(fits_file)) 
+       raise ValueError("FITS file \"{}\" data does not contain specified keys. Please check.".format(fits_file)) 
     this_lc.ra = fits_header['ALPHA']
     this_lc.dec = fits_header['DELTA']
 #    this_lc.features['u'] = fits_header['U']
@@ -299,23 +299,27 @@ def load_from_fits(fits_file, args):
 def curves_from_dir(args):
     
     fits_list = list()
-    files = glob.glob(os.path.join(args.folder, 'agn_*.fits'))
+    files = glob.glob(os.path.join(args.folder, args.pattern))
+    if not files:
+        raise ValueError("Folder \"%s\" does not contain files that match pattern \"%s\"" % (args.folder, args.pattern))
     print "Reading..."
     for index, fits_file in enumerate(files):
-        print "file [%d/%d] \"%s\"" % (index, len(files), fits_file)
+        print "Reading file [%d/%d] \"%s\"" % (index, len(files), fits_file)
         try:
             fits_list.append(load_from_fits(fits_file, args))
         except ValueError as e:
             print e
     print "Done"
+    if not fits_list:
+        raise ValueError("No light curves have been found in \"%s\" folder. Please check FITS files key names" % args.folder)
     return fits_list
 
 def calc_features(light_curve, methods):
+    
     print "Processing \"%s\"..." % light_curve
     for method in methods:
         light_curve.set_features(method.calculate_features(light_curve))
     print "Done \"%s\"." % light_curve
-
     return light_curve
 
 def main():
@@ -335,6 +339,7 @@ def main():
     parser.add_argument('-d', '--dates', required=True)
     parser.add_argument('-m', '--mag', required=True)
     parser.add_argument('-e', '--mag_err', required=True)
+    parser.add_argument('-p', '--pattern', nargs='?', default="*.fits")
 
     args = parser.parse_args()
 
