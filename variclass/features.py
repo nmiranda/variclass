@@ -167,7 +167,6 @@ class CARMCMCMethod(FeatureMethod):
         z = light_curve.zspec
 
         #import ipdb;ipdb.set_trace()
-        
         model = cm.CarmaModel(jd/(1+z), mag, errmag, p=1, q=0)
         sample = model.run_mcmc(20000)
         log_omega=sample.get_samples('log_omega')
@@ -221,10 +220,10 @@ class LightCurve(object):
         return self.series.axes[0].values
 
     def get_mag(self):
-        return self.series.mag.values
+        return self.series.mag.values.astype(np.float64)
 
     def get_mag_err(self):
-        return self.series.mag_err.values
+        return self.series.mag_err.values.astype(np.float64)
 
     def as_array(self):
         return np.array([
