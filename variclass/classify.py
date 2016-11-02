@@ -1,9 +1,11 @@
 import argparse
 from features import FeatureData
-from sklearn import preprocessing, svm, metrics
+#from sklearn import preprocessing, svm, metrics
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import time
+import sys
 
 plt.style.use('ggplot')
 
@@ -81,7 +83,6 @@ def main():
     plot(('CAR_tau', 'Meanvariance'), (-1,4), 'cartau_meanvariance')
     plot(('PercentDifferenceFluxPercentile', 'Autocor_length'), (1,8), 'percent_carmean')
 
-    
 
 if __name__=="__main__":
     main()

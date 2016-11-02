@@ -2,7 +2,7 @@
 
 import os
 import pyfits
-from SF import fitSF_mcmc, Pvar
+from SF import fitSF_mcmc, var_parameters
 import FATS
 import numpy as np
 import pandas as pd
@@ -14,6 +14,7 @@ from pgram_func2 import get_period_sigf
 from pathos.multiprocessing import ProcessingPool as Pool
 import carmcmc as cm
 import itertools
+import time
 
 # Lista de features a calcular
 feature_list = [
@@ -55,7 +56,7 @@ feature_list = [
     'pg_sig1',
     'tau_mc', 
     'sigma_mc',
-    'pvar',
+    'p_var',
     'ex_var',
     'ex_var_err',
 ]
@@ -83,9 +84,11 @@ class FATSMethod(FeatureMethod):
 class MCMCMethod(FeatureMethod):
 
     supported_features = [
-            'A_mcmc',
-            'gamma_mcmc',
-            'pvar',
+        'A_mcmc',
+        'gamma_mcmc',
+        'p_var',
+        'ex_var',
+        'ex_verr',
         ]
     
     def __init__(self, selected_features=[]):
@@ -96,14 +99,18 @@ class MCMCMethod(FeatureMethod):
 
     def calculate_features(self, light_curve):
         return_vals = dict()
-        mcmc_vals = fitSF_mcmc(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err(), 2, 24, 50)
+        mcmc_vals = fitSF_mcmc(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err(), 2, 50, 200, 1)
         if 'A_mcmc' in self.features:
             return_vals['A_mcmc'] = mcmc_vals[0][0]
         if 'gamma_mcmc' in self.features:
             return_vals['gamma_mcmc'] = mcmc_vals[1][0]
-        if 'pvar' in self.features:
-            this_pvar = Pvar(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
-            return_vals['pvar'] = this_pvar
+        this_var = var_parameters(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
+        if 'p_var' in self.features:
+            return_vals['p_var'] = this_var[0]
+        if 'ex_var' in self.features:
+            return_vals['ex_var'] = this_var[1]
+        if 'ex_verr' in self.features:
+            return_vals['ex_verr'] = this_var[2]
         return return_vals
 
 class P4JMethod(FeatureMethod):
@@ -159,15 +166,14 @@ class CARMCMCMethod(FeatureMethod):
         for feature in selected_features:
             if feature in self.supported_features:
                 self.features.append(feature)
-
+                
     def calculate_features(self, light_curve):
         jd = light_curve.get_dates()
         mag = light_curve.get_mag()
         errmag = light_curve.get_mag_err()
         z = light_curve.zspec
 
-        #import ipdb;ipdb.set_trace()
-        model = cm.CarmaModel(jd/(1+z), mag, errmag, p=1, q=0)
+        model = cm.CarmaModel(jd, mag, errmag, p=1, q=0)
         sample = model.run_mcmc(20000)
         log_omega=sample.get_samples('log_omega')
         tau=np.exp(-1.0*log_omega)
@@ -178,26 +184,6 @@ class CARMCMCMethod(FeatureMethod):
         
         return return_vals
 
-
-class PaulaMethod(FeatureMethod):
-
-    supported_features = ['pvar', 'ex_var', 'ex_var_err']
-
-    def __init__(self, selected_features=supported_features):
-        self.features = list()
-        for feature in selected_features:
-            if feature in self.supported_features:
-                self.features.append(feature)
-
-
-    def calculate_features(self, light_curve):
-        vals = var_parameters(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
-        return {
-            supported_features[0]: vals[0],
-            supported_features[1]: vals[1],
-            supported_features[2]: vals[2],
-            }
-            
 class LightCurve(object):
 
     def __init__(self, date, mag, mag_err):
@@ -239,8 +225,8 @@ class LightCurve(object):
 class FeatureData(object):
 
     def __init__(self, filename):
-        self.store = pd.HDFStore(filename, format='table')
         self.features = dict()
+	self.filename = filename
 
     def add_light_curves(self, lightcurves):
         for lightcurve in lightcurves:
@@ -259,9 +245,7 @@ class FeatureData(object):
     def save_to_store(self):
         this_frame = pd.DataFrame(self.features).T
         this_frame = this_frame.apply(lambda x: pd.to_numeric(x, errors='ignore'))
-        #import ipdb;ipdb.set_trace()
-        self.store.append('features', this_frame, format='table', min_itemsize={'TYPE':8})
-        self.features = dict()
+    	this_frame.to_csv(self.filename, index_label=['RA', 'DEC'])
 
     def get_features(self, exclude=None):
         this_features = self.store.features
@@ -275,7 +259,12 @@ def load_from_fits(fits_file, args):
 
     try:
 #        this_lc = LightCurve(fits_data['JD'], fits_data['Q'], fits_data['errQ'])
-        this_lc = LightCurve(fits_data[args.dates], fits_data[args.mag], fits_data[args.mag_err])
+        if args.use_z:
+            this_lc.zspec = fits_header['ZSPEC']
+            this_dates = fits_data(args.dates)/(1+this_lc.zspec)
+        else:
+            this_dates = fits_data[args.dates]
+        this_lc = LightCurve(this_dates, fits_data[args.mag], fits_data[args.mag_err])
     except KeyError:
        raise ValueError("FITS file \"{}\" data does not contain specified keys. Please check.".format(fits_file)) 
     this_lc.ra = fits_header['ALPHA']
@@ -287,10 +276,6 @@ def load_from_fits(fits_file, args):
 #    this_lc.features['z'] = fits_header['Z']
     try:
         this_lc.obj_type = fits_header['TYPE']
-    except KeyError:
-        pass
-    try:
-        this_lc.zspec = fits_header['ZSPEC']
     except KeyError:
         pass
     return this_lc
@@ -322,7 +307,18 @@ def calc_features(light_curve, methods):
     return light_curve
 
 def main():
-    
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-f', '--folder', required=True, help='Folder where FITS files are located.')
+    parser.add_argument('-o', '--output', required=True, help='Output text file with calculated features.')
+    parser.add_argument('-n', '--num_cores', type=int, default=1, help='Number of cores (threads).')
+    parser.add_argument('-d', '--dates', default='JD', help='FITS header tag for dates.')
+    parser.add_argument('-m', '--mag', default='Q', help='FITS header tag for magnitude.')
+    parser.add_argument('-e', '--mag_err', default='errQ', help='FITS header tag for magnitude error.')
+    parser.add_argument('-p', '--pattern', default="*.fits", help='Pattern with wildcard to match desired FITS files.')
+    parser.add_argument('-z', '--use_z', action='store_true', help='If present fix date data using redshift.')
+    args = parser.parse_args()
+
     method_classes = [
             #FATSMethod,
             MCMCMethod,
@@ -331,28 +327,20 @@ def main():
             CARMCMCMethod,
             ]
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--folder', required=True)
-    parser.add_argument('-s', '--store', required=True)
-    parser.add_argument('-n', '--num_cores', nargs='?', type=int, default=1)
-    parser.add_argument('-d', '--dates', required=True)
-    parser.add_argument('-m', '--mag', required=True)
-    parser.add_argument('-e', '--mag_err', required=True)
-    parser.add_argument('-p', '--pattern', nargs='?', default="*.fits")
-
-    args = parser.parse_args()
-
     methods = [method_class(feature_list) for method_class in method_classes]
-    
-    feature_data = FeatureData(args.store)
-    
+
+    feature_data = FeatureData(args.output)
+
     light_curves = curves_from_dir(args)
 
     if args.num_cores > 1:
         proc_pool = Pool(processes=int(args.num_cores))
-        res_light_curves = proc_pool.map(calc_features, light_curves, itertools.repeat(methods))
+        proc_light_curves = proc_pool.amap(calc_features, light_curves, itertools.repeat(methods))
+        while not proc_light_curves.ready():
+            print "****Chunks left: %d****" % proc_light_curves._number_left
+	    time.sleep(5)
+        res_light_curves = proc_light_curves.get()
         proc_pool.close()
-        proc_pool.join()
 
     elif args.num_cores == 1:
         res_light_curves = map(calc_features, light_curves, itertools.repeat(methods))
@@ -360,6 +348,6 @@ def main():
     feature_data.add_light_curves(res_light_curves)
              
     feature_data.save_to_store()
-
+    
 if __name__ == "__main__":
     main()
