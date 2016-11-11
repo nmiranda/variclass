@@ -15,6 +15,7 @@ from pathos.multiprocessing import ProcessingPool as Pool
 import carmcmc as cm
 import itertools
 import time
+import wavelets
 
 # Lista de features a calcular
 feature_list = [
@@ -184,6 +185,26 @@ class CARMCMCMethod(FeatureMethod):
         
         return return_vals
 
+
+class WaveletsMethod(FeatureMethod):
+
+    supported_features = ['wave_coef', 'wave_tau']
+
+    def __init__(self, selected_features=supported_features):
+        self.features = list()
+        for feature in selected_features:
+            if feature in self.supported_features:
+                self.features.append(feature)
+                
+    def calculate_features(self, light_curve):
+        try:
+            wave_var = wavelets.wavelet_variance((light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err()))
+        except ValueError:
+            return {self.supported_features[0]: 0, self.supported_features[1]: 0}
+        this_var = wave_var[0]
+        arg_max = np.argmax(this_var)
+        return {self.supported_features[0]: this_var[arg_max], self.supported_features[1]: arg_max}
+        
 class LightCurve(object):
 
     def __init__(self, date, mag, mag_err):
@@ -261,7 +282,7 @@ def load_from_fits(fits_file, args):
 #        this_lc = LightCurve(fits_data['JD'], fits_data['Q'], fits_data['errQ'])
         if args.use_z:
             this_lc.zspec = fits_header['ZSPEC']
-            this_dates = fits_data(args.dates)/(1+this_lc.zspec)
+            this_dates = fits_data[args.dates]/(1+this_lc.zspec)
         else:
             this_dates = fits_data[args.dates]
         this_lc = LightCurve(this_dates, fits_data[args.mag], fits_data[args.mag_err])
@@ -320,12 +341,13 @@ def main():
     args = parser.parse_args()
 
     method_classes = [
-            #FATSMethod,
-            MCMCMethod,
-            P4JMethod,
-            PeriodgramMethod,
-            CARMCMCMethod,
-            ]
+        FATSMethod,
+        MCMCMethod,
+        P4JMethod,
+        PeriodgramMethod,
+        CARMCMCMethod,
+        WaveletsMethod
+    ]
 
     methods = [method_class(feature_list) for method_class in method_classes]
 
@@ -343,7 +365,7 @@ def main():
         proc_pool.close()
 
     elif args.num_cores == 1:
-        res_light_curves = map(calc_features, light_curves, itertools.repeat(methods))
+        res_light_curves = itertools.imap(calc_features, light_curves, itertools.repeat(methods))
 
     feature_data.add_light_curves(res_light_curves)
              
