@@ -17,8 +17,10 @@ import itertools
 import time
 import wavelets
 
-# Lista de features a calcular
+# Lista de features a guardar
 feature_list = [
+    'ZSPEC',
+    'TYPE',
     'Mean',
     'Std',
     'Meanvariance',
@@ -37,18 +39,25 @@ feature_list = [
     'Con',
     'LinearTrend',
     'Beyond1Std',
-    'FluxPercentileRatioMid20',
-    'FluxPercentileRatioMid35',
-    'FluxPercentileRatioMid50',
-    'FluxPercentileRatioMid65',
-    'FluxPercentileRatioMid80',
-    'PercentDifferenceFluxPercentile',
+    #'FluxPercentileRatioMid20',
+    #'FluxPercentileRatioMid35',
+    #'FluxPercentileRatioMid50',
+    #'FluxPercentileRatioMid65',
+    #'FluxPercentileRatioMid80',
+    #'PercentDifferenceFluxPercentile',
     'Q31',
     'CAR_sigma',
     'CAR_mean',
     'CAR_tau',
     'A_mcmc',
+    'A_mcmc_err_inf',
+    'A_mcmc_err_sup',
     'gamma_mcmc',
+    'gamma_mcmc_err_inf',
+    'gamma_mcmc_err_sup',
+    'p_var',
+    'ex_var',
+    'ex_verr',
     'wmcc_bestperiod', 
     'wmcc_bestfreq',
     'pg_best_period', 
@@ -56,10 +65,13 @@ feature_list = [
     'pg_sig5', 
     'pg_sig1',
     'tau_mc', 
+    'tau_mc_inf_err',
+    'tau_mc_sup_err',
     'sigma_mc',
-    'p_var',
-    'ex_var',
-    'ex_var_err',
+    'sigma_mc_inf_err',
+    'sigma_mc_sup_err',
+    'wave_coef',
+    'wave_tau',
 ]
 
 
@@ -86,7 +98,11 @@ class MCMCMethod(FeatureMethod):
 
     supported_features = [
         'A_mcmc',
+        'A_mcmc_err_inf',
+        'A_mcmc_err_sup',
         'gamma_mcmc',
+        'gamma_mcmc_err_inf',
+        'gamma_mcmc_err_sup',
         'p_var',
         'ex_var',
         'ex_verr',
@@ -102,16 +118,20 @@ class MCMCMethod(FeatureMethod):
         return_vals = dict()
         mcmc_vals = fitSF_mcmc(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err(), 2, 50, 200, 1)
         if 'A_mcmc' in self.features:
-            return_vals['A_mcmc'] = mcmc_vals[0][0]
+            return_vals[self.supported_features[0]] = mcmc_vals[0][0]
+            return_vals[self.supported_features[1]] = mcmc_vals[0][1]
+            return_vals[self.supported_features[2]] = mcmc_vals[0][2]
         if 'gamma_mcmc' in self.features:
-            return_vals['gamma_mcmc'] = mcmc_vals[1][0]
+            return_vals[self.supported_features[3]] = mcmc_vals[1][0]
+            return_vals[self.supported_features[4]] = mcmc_vals[1][1]
+            return_vals[self.supported_features[5]] = mcmc_vals[1][2]
         this_var = var_parameters(light_curve.get_dates(), light_curve.get_mag(), light_curve.get_mag_err())
         if 'p_var' in self.features:
-            return_vals['p_var'] = this_var[0]
+            return_vals[self.supported_features[6]] = this_var[0]
         if 'ex_var' in self.features:
-            return_vals['ex_var'] = this_var[1]
+            return_vals[self.supported_features[7]] = this_var[1]
         if 'ex_verr' in self.features:
-            return_vals['ex_verr'] = this_var[2]
+            return_vals[self.supported_features[8]] = this_var[2]
         return return_vals
 
 class P4JMethod(FeatureMethod):
@@ -160,7 +180,14 @@ class PeriodgramMethod(FeatureMethod):
 
 class CARMCMCMethod(FeatureMethod):
 
-    supported_features = ['tau_mc', 'sigma_mc']
+    supported_features = [
+        'tau_mc',
+        'tau_mc_inf_err',
+        'tau_mc_sup_err',
+        'sigma_mc',
+        'sigma_mc_inf_err',
+        'sigma_mc_sup_err',
+    ]
 
     def __init__(self, selected_features=supported_features):
         self.features = list()
@@ -180,8 +207,15 @@ class CARMCMCMethod(FeatureMethod):
         tau=np.exp(-1.0*log_omega)
         sigma=sample.get_samples('sigma')
         tau_mc=(np.percentile(tau, 50),np.percentile(tau, 50)-np.percentile(tau, 15.865),np.percentile(tau, 84.135)-np.percentile(tau, 50))
-        sigma_mc=(np.percentile(sigma, 50),np.percentile(tau, 50)-np.percentile(sigma, 15.865),np.percentile(sigma, 84.135)-np.percentile(sigma, 50))
-        return_vals = {self.supported_features[0]: tau_mc, self.supported_features[1]: sigma_mc}
+        sigma_mc=(np.percentile(sigma, 50),np.percentile(sigma, 50)-np.percentile(sigma, 15.865),np.percentile(sigma, 84.135)-np.percentile(sigma, 50))
+        return_vals = {
+            self.supported_features[0]: tau_mc[0],
+            self.supported_features[1]: tau_mc[1],
+            self.supported_features[2]: tau_mc[2],
+            self.supported_features[3]: sigma_mc[0],
+            self.supported_features[4]: sigma_mc[1],
+            self.supported_features[5]: sigma_mc[2],
+        }
         
         return return_vals
 
@@ -244,7 +278,7 @@ class LightCurve(object):
             self.features.update(feature_dict)
 
 class FeatureData(object):
-
+    
     def __init__(self, filename):
         self.features = dict()
 	self.filename = filename
@@ -266,7 +300,7 @@ class FeatureData(object):
     def save_to_store(self):
         this_frame = pd.DataFrame(self.features).T
         this_frame = this_frame.apply(lambda x: pd.to_numeric(x, errors='ignore'))
-    	this_frame.to_csv(self.filename, index_label=['RA', 'DEC'])
+    	this_frame.to_csv(self.filename, index_label=['RA', 'DEC'], columns=feature_list)
 
     def get_features(self, exclude=None):
         this_features = self.store.features
