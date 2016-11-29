@@ -1,6 +1,6 @@
 import argparse
 from features import FeatureData
-#from sklearn import preprocessing, svm, metrics
+from sklearn import preprocessing, svm, model_selection
 import numpy as np
 import pandas as pd
 #import matplotlib.pyplot as plt
@@ -10,8 +10,77 @@ import sys
 #plt.style.use('ggplot')
 
 feature_list = [
+    #'ZSPEC',
     'Mean',
     'Std',
+    'Meanvariance',
+    'MedianBRP',
+    'Rcs',
+    'PeriodLS',
+    'Period_fit',
+    #'Color',
+    'Autocor_length',
+    #'SlottedA_length',
+    'StetsonK',
+    #'StetsonK_AC',
+    'Eta_e',
+    'Amplitude',
+    'PercentAmplitude',
+    #'Con',
+    'LinearTrend',
+    'Beyond1Std',
+    #'FluxPercentileRatioMid20',
+    #'FluxPercentileRatioMid35',
+    #'FluxPercentileRatioMid50',
+    #'FluxPercentileRatioMid65',
+    #'FluxPercentileRatioMid80',
+    #'PercentDifferenceFluxPercentile',
+    'Q31',
+    #'CAR_sigma',
+    #'CAR_mean',
+    #'CAR_tau',
+    'A_mcmc',
+    #'A_mcmc_err_inf',
+    #'A_mcmc_err_sup',
+    'gamma_mcmc',
+    #'gamma_mcmc_err_inf',
+    #'gamma_mcmc_err_sup',
+    'p_var',
+    'ex_var',
+    #'ex_verr',
+    #'wmcc_bestperiod',
+    #'wmcc_bestfreq',
+    'pg_best_period',
+    #'pg_peak',
+    #'pg_sig5',
+    #'pg_sig1',
+    'tau_mc',
+    #'tau_mc_inf_err',
+    #'tau_mc_sup_err',
+    'sigma_mc',
+    #'sigma_mc_inf_err',
+    #'sigma_mc_sup_err',
+    'wave_coef',
+    'wave_tau',
+    'u',
+    #'ERR_u',
+    'g',
+    #'ERR_g',
+    'r',
+    #'ERR_r',
+    'i',
+    #'ERR_i',
+    'z',
+    #'ERR_z',
+    #'zspec',
+    #'zspec_err',
+    #'class',
+    #'subClass',
+    'u_g',
+    'g_r',
+    'r_i',
+    'i_z',
+    'diff_exvar',
     ]
 
 def tag_qso(label):
@@ -27,69 +96,59 @@ def tag_qso_bin(label):
 def main():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--training', required=True)
-    #parser.add_argument('-s', '--test', required=True)
+    parser.add_argument('-t', '--training', required=True, help='CSV file with training data vectors as rows and features as columns')
+    parser.add_argument('-c', '--classtag', default='class', help='Tag or name of column that defines the classes of the respective vectors in training data file (default: "class")')
+    parser.add_argument('-s', '--test', help='CSV file with data to classify. Vectors as rows and features as columns.')
+    parser.add_argument('-o', '--output', help='Output CSV file to write the result of the classification.')
     args = parser.parse_args()
 
-    training_data_store = FeatureData(args.training)
-    
+    print "Reading training data in \"%s\"" % args.training
+    training_data = pd.read_csv(args.training)
 
-    #training_data_features = training_data_store.get_features()
-    #test_data_store = FeatureData(args.test)
-    #test_data_features = test_data_store.get_features()
+    print "Pre-processing training data"
+    training_X = training_data[feature_list].astype('float64')
+    training_Y = training_data[args.classtag].apply(tag_qso)
 
-    #X_training = training_data_features.drop(['TYPE', 'ZSPEC', 'Mean', 'u', 'g', 'r', 'i', 'z', 'Eta_e'], axis=1)
-    #y_training = training_data_features['TYPE']
-    #y_training = y_training.apply(tag_qso)
-    
-#    import ipdb;ipdb.set_trace()
+    try:
+        scaler = preprocessing.StandardScaler().fit(training_X)
+    except ValueError:
+        column_is_invalid = training_X.applymap(lambda x: x==np.inf).any()
+        invalid_columns = column_is_invalid[column_is_invalid].index.tolist()
+        raise ValueError("Column(s) %s has(have) invalid values. Please exclude from feature list or remove respective rows." % invalid_columns)
+    training_X = scaler.transform(training_X)
 
-    #scaler = preprocessing.StandardScaler().fit(X_training)
-    #X_training_norm = scaler.transform(X_training)
-    
-    #classifier = svm.SVC(kernel='linear')
-    #classifier = svm.LinearSVC()
-    classifier.fit(X_training_norm, y_training)
+    param_grid = {'kernel': ['linear'], 'C': [1, 10, 100, 1000]}
 
-    coef = pd.Series(classifier.coef_[0], index=X_training.columns)
-    scores = coef.abs().sort_values(ascending=False)
-    print scores
-    
-    features_training = pd.DataFrame(X_training_norm, index=X_training.index,  columns=X_training.columns)
+    model = svm.SVC(class_weight='balanced', probability=True)
+    print "Training classifier \"%s\"" % model
 
-    def plot(labels, plane_limits, filename):
+    inner_cv = model_selection.KFold(shuffle=True)
+    outer_cv = model_selection.KFold(shuffle=True)
 
-        plt.figure()
+    modeselektor = model_selection.GridSearchCV(estimator=model, param_grid=param_grid, cv=inner_cv)
+    modeselektor.fit(training_X, training_Y)
+
+    scores = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv).mean()
+
+    print "Classification score: %f" % scores.mean()
+
+    if args.test:
+
+        print "Reading test data in \"%s\"" % args.test
+        test_data = pd.read_csv(args.test)
+
+        print "Pre-processing test data"
+        test_X = test_data[feature_list].astype('float64')
+        test_X = scaler.transform(test_X)
+
+        print "Classifying test data"
+        test_Y = modeselektor.predict(test_X)
+        test_Y_proba = np.amax(modeselektor.predict_proba(test_X), axis=0)
+
+        print "Writing results to \"%s\"" % args.output
+        test_data['predicted_class'] = test_Y
+        test_data['predicted_class_proba'] = test_Y_proba
+        test_data.to_csv(args.output)
         
-        #features_training.plot(x='Amplitude', y='i', style=['x', 'o'])
-        plt.scatter(features_training[y_training == 'QSO'][labels[0]], features_training[y_training == 'QSO'][labels[1]], c='b', label='QSO')
-        plt.scatter(features_training[y_training != 'QSO'][labels[0]], features_training[y_training != 'QSO'][labels[1]], c='r', label='NON-QSO')
-
-        #import ipdb;ipdb.set_trace()
-
-        ww = coef[[labels[0], labels[1]]]
-        y0 = classifier.intercept_[0]
-        aa = -ww[0]/ww[1]
-        #xx = np.linspace(features_training['Amplitude'].min(),  features_training['Amplitude'].max())
-        xx = np.linspace(plane_limits[0], plane_limits[1])
-        yy = aa * xx - y0 / ww[1]
-
-        plt.plot(xx, yy, 'k-', label='SVM hyperplane')
-
-        plt.legend(scatterpoints=1)
-        plt.xlabel(labels[0])
-        plt.ylabel(labels[1])
-
-        plt.savefig(filename)
-
-        #import ipdb;ipdb.set_trace()
-
-    plot(('Amplitude', 'Std'), (-1,2), 'amplitude_std')
-    plot(('Amplitude', 'CAR_tau'), (0,2), 'amplitude_cartau')
-    plot(('Amplitude', 'A_mcmc'), (-1,1), 'amplitude_amcmc') 
-    plot(('CAR_tau', 'Meanvariance'), (-1,4), 'cartau_meanvariance')
-    plot(('PercentDifferenceFluxPercentile', 'Autocor_length'), (1,8), 'percent_carmean')
-
-
 if __name__=="__main__":
     main()
