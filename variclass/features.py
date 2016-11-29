@@ -282,6 +282,10 @@ class FeatureData(object):
     def __init__(self, filename):
         self.features = dict()
 	self.filename = filename
+        try:
+            self.store = pd.read_csv(filename)
+        except IOError:
+            self.store = None
 
     def add_light_curves(self, lightcurves):
         for lightcurve in lightcurves:

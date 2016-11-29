@@ -3,11 +3,16 @@ from features import FeatureData
 #from sklearn import preprocessing, svm, metrics
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import time
 import sys
 
-plt.style.use('ggplot')
+#plt.style.use('ggplot')
+
+feature_list = [
+    'Mean',
+    'Std',
+    ]
 
 def tag_qso(label):
     if label != 'QSO':
@@ -23,24 +28,26 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--training', required=True)
-    parser.add_argument('-s', '--test', required=True)
+    #parser.add_argument('-s', '--test', required=True)
     args = parser.parse_args()
 
     training_data_store = FeatureData(args.training)
-    training_data_features = training_data_store.get_features()
+    
+
+    #training_data_features = training_data_store.get_features()
     #test_data_store = FeatureData(args.test)
     #test_data_features = test_data_store.get_features()
 
-    X_training = training_data_features.drop(['TYPE', 'ZSPEC', 'Mean', 'u', 'g', 'r', 'i', 'z', 'Eta_e'], axis=1)
-    y_training = training_data_features['TYPE']
-    y_training = y_training.apply(tag_qso)
+    #X_training = training_data_features.drop(['TYPE', 'ZSPEC', 'Mean', 'u', 'g', 'r', 'i', 'z', 'Eta_e'], axis=1)
+    #y_training = training_data_features['TYPE']
+    #y_training = y_training.apply(tag_qso)
     
 #    import ipdb;ipdb.set_trace()
 
-    scaler = preprocessing.StandardScaler().fit(X_training)
-    X_training_norm = scaler.transform(X_training)
+    #scaler = preprocessing.StandardScaler().fit(X_training)
+    #X_training_norm = scaler.transform(X_training)
     
-    classifier = svm.SVC(kernel='linear')
+    #classifier = svm.SVC(kernel='linear')
     #classifier = svm.LinearSVC()
     classifier.fit(X_training_norm, y_training)
 
