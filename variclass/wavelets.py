@@ -46,7 +46,6 @@ def wavelet_variance(data):
     sw_dis = np.zeros_like(sw_var)
     wc = np.empty((maxscale, n))
     ser = np.zeros([maxscale, np.max(sMj)])
-    import ipdb;ipdb.set_trace()
     for jscale in range(maxscale):
         try:
             a, b = dpss(sMj[jscale], 3.5, 5)
