@@ -207,7 +207,7 @@ class CARMCMCMethod(FeatureMethod):
         tau=np.exp(-1.0*log_omega)
         sigma=sample.get_samples('sigma')
         tau_mc=(np.percentile(tau, 50),np.percentile(tau, 50)-np.percentile(tau, 15.865),np.percentile(tau, 84.135)-np.percentile(tau, 50))
-        sigma_mc=(np.percentile(sigma, 50),np.percentile(tau, 50)-np.percentile(sigma, 15.865),np.percentile(sigma, 84.135)-np.percentile(sigma, 50))
+        sigma_mc=(np.percentile(sigma, 50),np.percentile(sigma, 50)-np.percentile(sigma, 15.865),np.percentile(sigma, 84.135)-np.percentile(sigma, 50))
         return_vals = {
             self.supported_features[0]: tau_mc[0],
             self.supported_features[1]: tau_mc[1],
