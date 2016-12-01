@@ -100,6 +100,7 @@ def main():
     parser.add_argument('-c', '--classtag', default='class', help='Tag or name of column that defines the classes of the respective vectors in training data file (default: "class")')
     parser.add_argument('-s', '--test', help='CSV file with data to classify. Vectors as rows and features as columns.')
     parser.add_argument('-o', '--output', help='Output CSV file to write the result of the classification.')
+    parser.add_argument('-n', '--ncores', type=int, default=1, help='Number of cores or jobs in parallel to run')
     args = parser.parse_args()
 
     print "Reading training data in \"%s\"" % args.training
@@ -125,7 +126,7 @@ def main():
     inner_cv = model_selection.KFold(shuffle=True)
     outer_cv = model_selection.KFold(shuffle=True)
 
-    modeselektor = model_selection.GridSearchCV(estimator=model, param_grid=param_grid, cv=inner_cv)
+    modeselektor = model_selection.GridSearchCV(estimator=model, param_grid=param_grid, cv=inner_cv, n_jobs=args.ncores)
     modeselektor.fit(training_X, training_Y)
 
     scores = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv).mean()
