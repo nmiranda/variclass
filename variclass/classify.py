@@ -3,9 +3,9 @@ from features import FeatureData
 from sklearn import preprocessing, svm, model_selection
 import numpy as np
 import pandas as pd
-#import matplotlib.pyplot as plt
 import time
 import sys
+import pickle
 
 #plt.style.use('ggplot')
 
@@ -96,45 +96,81 @@ def tag_qso_bin(label):
 def main():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--training', required=True, help='CSV file with training data vectors as rows and features as columns')
+    parser.add_argument('-t', '--training', help='CSV file with training data vectors as rows and features as columns')
     parser.add_argument('-c', '--classtag', default='class', help='Tag or name of column that defines the classes of the respective vectors in training data file (default: "class")')
     parser.add_argument('-s', '--test', help='CSV file with data to classify. Vectors as rows and features as columns.')
     parser.add_argument('-o', '--output', help='Output CSV file to write the result of the classification.')
     parser.add_argument('-n', '--ncores', type=int, default=1, help='Number of cores or jobs in parallel to run')
+    parser.add_argument('-d', '--dump', help='File to which save or dump the trained model')
+    parser.add_argument('-l', '--load', help='File from which load a trained model')
     args = parser.parse_args()
 
-    print "Reading training data in \"%s\"" % args.training
-    training_data = pd.read_csv(args.training)
 
-    print "Pre-processing training data"
-    training_X = training_data[feature_list].astype('float64')
-    training_Y = training_data[args.classtag].apply(tag_qso)
+    if not args.load:
+        if not args.training:
+            parser.error("option '-t'/'--training' is required when not loading a trained model.")
 
-    try:
-        scaler = preprocessing.StandardScaler().fit(training_X)
-    except ValueError:
-        column_is_invalid = training_X.applymap(lambda x: x==np.inf).any()
-        invalid_columns = column_is_invalid[column_is_invalid].index.tolist()
-        raise ValueError("Column(s) %s has(have) invalid values. Please exclude from feature list or remove respective rows." % invalid_columns)
-    training_X = scaler.transform(training_X)
+        print "Reading training data in \"%s\"" % args.training
+        training_data = pd.read_csv(args.training)
 
-    param_grid = {'kernel': ['linear'], 'C': [1, 10, 100, 1000]}
+        print "Pre-processing training data"
+        training_X = training_data[feature_list].astype('float64')
 
-    model = svm.SVC(class_weight='balanced', probability=True)
-    print "Training classifier \"%s\"" % model
+        label_encoder = preprocessing.LabelEncoder()
+        training_Y = training_data[args.classtag].apply(tag_qso)
+        label_encoder.fit(training_Y)
+        training_Y = label_encoder.transform(training_Y)
 
-    inner_cv = model_selection.KFold(shuffle=True)
-    outer_cv = model_selection.KFold(shuffle=True)
+        try:
+            scaler = preprocessing.StandardScaler().fit(training_X)
+        except ValueError:
+            column_is_invalid = training_X.applymap(lambda x: x==np.inf).any()
+            invalid_columns = column_is_invalid[column_is_invalid].index.tolist()
+            raise ValueError("Column(s) %s has(have) invalid values. Please exclude from feature list or remove respective rows." % invalid_columns)
+        training_X = scaler.transform(training_X)
 
-    modeselektor = model_selection.GridSearchCV(estimator=model, param_grid=param_grid, cv=inner_cv, n_jobs=args.ncores)
-    modeselektor.fit(training_X, training_Y)
+        param_grid = {'kernel': ['linear'], 'C': [1, 10, 100, 1000]}
 
-    scores = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv).mean()
+        model = svm.SVC(class_weight='balanced', probability=True)
+        print "Training classifier \"%s\"" % model
 
-    print "Classification score: %f" % scores.mean()
+        inner_cv = model_selection.KFold(shuffle=True)
+        outer_cv = model_selection.KFold(shuffle=True)
+
+        modeselektor = model_selection.GridSearchCV(estimator=model, param_grid=param_grid, cv=inner_cv, n_jobs=args.ncores)
+        modeselektor.fit(training_X, training_Y)
+        f1_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='f1').mean()
+        scores = {
+            'f1': f1_score,
+            }
+
+        if args.dump:
+            print "Dumping trained model in file \"%s\"" % args.dump
+            with open(args.dump, 'wb') as pickle_file:
+                model_dump = {
+                    'modeselektor': modeselektor,
+                    'scaler': scaler,
+                    'scores': scores,
+                    'label_encoder': label_encoder,
+                    }
+                pickle.dump(model_dump, pickle_file)
+        
+    else:
+        print "Loading trained model in file \"%s\"." % args.load
+        with open(args.load, 'rb') as pickle_file:
+            model_dump = pickle.load(pickle_file)
+            modeselektor = model_dump['modeselektor']
+            scaler = model_dump['scaler']
+            scores = model_dump['scores']
+            label_encoder = model_dump['label_encoder']
+        
+    print "Classification F1 score: %f" % scores['f1']
+
 
     if args.test:
-
+        if not args.output:
+            parser.error("option '-o'/'--output' is required when using test data.")
+        
         print "Reading test data in \"%s\"" % args.test
         test_data = pd.read_csv(args.test)
 
@@ -143,8 +179,8 @@ def main():
         test_X = scaler.transform(test_X)
 
         print "Classifying test data"
-        test_Y = modeselektor.predict(test_X)
-        test_Y_proba = np.amax(modeselektor.predict_proba(test_X), axis=0)
+        test_Y = label_encoder.inverse_transform(modeselektor.predict(test_X))
+        test_Y_proba = np.amax(modeselektor.predict_proba(test_X), axis=1)
 
         print "Writing results to \"%s\"" % args.output
         test_data['predicted_class'] = test_Y
