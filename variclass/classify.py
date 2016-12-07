@@ -103,6 +103,7 @@ def main():
     parser.add_argument('-n', '--ncores', type=int, default=1, help='Number of cores or jobs in parallel to run')
     parser.add_argument('-d', '--dump', help='File to which save or dump the trained model')
     parser.add_argument('-l', '--load', help='File from which load a trained model')
+    parser.add_argument('-a', '--stats', help='File to write classification performance statistics')
     args = parser.parse_args()
 
 
@@ -140,8 +141,18 @@ def main():
         modeselektor = model_selection.GridSearchCV(estimator=model, param_grid=param_grid, cv=inner_cv, n_jobs=args.ncores)
         modeselektor.fit(training_X, training_Y)
         f1_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='f1').mean()
+        accuracy_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='accuracy').mean()
+        neg_log_loss_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='neg_log_loss').mean()
+        precision_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='precision').mean()
+        recall_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='recall').mean()
+        roc_auc_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='roc_auc').mean()
         scores = {
             'f1': f1_score,
+            'accuracy': accuracy_score,
+            'neg_log_loss': neg_log_loss_score,
+            'precision_score': precision_score,
+            'recall_score': recall_score,
+            'roc_auc_score': roc_auc_score,
             }
 
         if args.dump:
@@ -163,8 +174,15 @@ def main():
             scaler = model_dump['scaler']
             scores = model_dump['scores']
             label_encoder = model_dump['label_encoder']
-        
-    print "Classification F1 score: %f" % scores['f1']
+
+
+    if args.stats:
+        with open(args.stats, 'wb') as stats_file:
+            for key, value in scores.items():
+                stats_file.write("Classification score \"%s\": %f\n" % (key, value))
+    else:
+        for key, value in scores.items():
+            print "Classification score \"%s\": %f" % (key, value)
 
 
     if args.test:
