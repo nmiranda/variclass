@@ -116,6 +116,7 @@ def main():
 
         print "Pre-processing training data"
         training_X = training_data[feature_list].astype('float64')
+        features = training_X.columns.values.tolist()
 
         label_encoder = preprocessing.LabelEncoder()
         training_Y = training_data[args.classtag].apply(tag_qso)
@@ -163,6 +164,7 @@ def main():
                     'scaler': scaler,
                     'scores': scores,
                     'label_encoder': label_encoder,
+                    'features': features,
                     }
                 pickle.dump(model_dump, pickle_file)
         
@@ -174,16 +176,33 @@ def main():
             scaler = model_dump['scaler']
             scores = model_dump['scores']
             label_encoder = model_dump['label_encoder']
+            features = model_dump['features']
 
 
     if args.stats:
         with open(args.stats, 'wb') as stats_file:
             for key, value in scores.items():
                 stats_file.write("Classification score \"%s\": %f\n" % (key, value))
+            stats_file.write("\n")
+            feature_relevance = list()
+            for feature, score in zip(features, modeselektor.best_estimator_.coef_.tolist()[0]):
+                feature_relevance.append((feature, abs(score)))
+            feature_relevance.sort(key=lambda x: x[1], reverse=True)
+            stats_file.write("Ranking of feature relevance for classification:\n")
+            for feature, score in feature_relevance:
+                stats_file.write("%s: %s\n" % (feature, score))
+            
     else:
         for key, value in scores.items():
             print "Classification score \"%s\": %f" % (key, value)
-
+        print ""
+        feature_relevance = list()
+        for feature, score in zip(features, modeselektor.best_estimator_.coef_.tolist()[0]):
+            feature_relevance.append((feature, abs(score)))
+        feature_relevance.sort(key=lambda x: x[1], reverse=True)
+        print "Ranking of feature relevance for classification:"
+        for feature, score in feature_relevance:
+            print "%s: %s" % (feature, score)
 
     if args.test:
         if not args.output:
