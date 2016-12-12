@@ -1,13 +1,15 @@
 import argparse
 from features import FeatureData
-from sklearn import preprocessing, svm, model_selection
+from sklearn import preprocessing, svm, model_selection, metrics
 import numpy as np
 import pandas as pd
 import time
 import sys
 import pickle
+import matplotlib.pyplot as plt 
+import itertools
 
-#plt.style.use('ggplot')
+plt.style.use('ggplot')
 
 feature_list = [
     #'ZSPEC',
@@ -104,6 +106,7 @@ def main():
     parser.add_argument('-d', '--dump', help='File to which save or dump the trained model')
     parser.add_argument('-l', '--load', help='File from which load a trained model')
     parser.add_argument('-a', '--stats', help='File to write classification performance statistics')
+    parser.add_argument('-f', '--confusion', action='store_true', help='If presemt. save a png file, named with a timestamp, and containing a confusion matrix of the classification')
     args = parser.parse_args()
 
 
@@ -167,8 +170,36 @@ def main():
                     'features': features,
                     }
                 pickle.dump(model_dump, pickle_file)
+
+        if args.confusion:
+            _, X_test, _, y_test = train_test_split(training_X, training_Y, random_state=0)
+            y_pred = modeselektor.predict(X_test)
+            cnf_matrix = metrics.confusion_matrix(y_test, y_pred)
+            np.set_printoptions(precision=2)
+
+            plt.figure()
+            plt.imshow(cnf_matrix, interpolation='nearest', cmap=plt.cm.Blues)
+            plt.title("Confusion matrix for QSO classification")
+            plt.colorbar()
+            tick_marks = np.arange(len(label_encoder.classes_))
+            plt.xticks(tick_marks, label_encoder.classes_, rotation=45)
+            plt.yticks(tick_marks, label_encoder.classes)
+
+            print "Confusion matrix"
+            print cnf_matrix
+
+            thresh = cnf_matrix.max() / 2.
+            for i, j in itertools.product(range(cnf_matrix.shape[0]), range(cnf_matrix.shape[1])):
+                plt.text(j, i, cnf_matrix[i, j], horizontalalignment="center", color="white" if cm[i, j] > thresh else "black")
+            timestamp = "{:%Y%m%d%H%M%S}".format(datetime.datetime.now())
+            cnf_matrix_file = "confusion_matrix_%s.png" % timestamp
+            plt.savefig(cnf_matrix_file, bbox_inches='tight')
+            print "Confusion matrix saved in file \"%s\"" % cnf_matrix_file
         
     else:
+        if args.confusion:
+            parser.error("Cannot compute confusion matrix without training a model.")
+        
         print "Loading trained model in file \"%s\"." % args.load
         with open(args.load, 'rb') as pickle_file:
             model_dump = pickle.load(pickle_file)
