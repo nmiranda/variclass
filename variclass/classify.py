@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import argparse
 from features import FeatureData
 from sklearn import preprocessing, svm, model_selection, metrics
@@ -8,8 +10,9 @@ import sys
 import pickle
 import matplotlib.pyplot as plt 
 import itertools
+import datetime
 
-plt.style.use('ggplot')
+#plt.style.use('ggplot')
 
 feature_list = [
     #'ZSPEC',
@@ -172,9 +175,8 @@ def main():
                 pickle.dump(model_dump, pickle_file)
 
         if args.confusion:
-            _, X_test, _, y_test = train_test_split(training_X, training_Y, random_state=0)
-            y_pred = modeselektor.predict(X_test)
-            cnf_matrix = metrics.confusion_matrix(y_test, y_pred)
+            y_pred = modeselektor.predict(training_X)
+            cnf_matrix = metrics.confusion_matrix(training_Y, y_pred)
             np.set_printoptions(precision=2)
 
             plt.figure()
@@ -183,14 +185,19 @@ def main():
             plt.colorbar()
             tick_marks = np.arange(len(label_encoder.classes_))
             plt.xticks(tick_marks, label_encoder.classes_, rotation=45)
-            plt.yticks(tick_marks, label_encoder.classes)
+            plt.yticks(tick_marks, label_encoder.classes_)
 
             print "Confusion matrix"
             print cnf_matrix
 
             thresh = cnf_matrix.max() / 2.
             for i, j in itertools.product(range(cnf_matrix.shape[0]), range(cnf_matrix.shape[1])):
-                plt.text(j, i, cnf_matrix[i, j], horizontalalignment="center", color="white" if cm[i, j] > thresh else "black")
+                plt.text(j, i, cnf_matrix[i, j], horizontalalignment="center", color="white" if cnf_matrix[i, j] > thresh else "black")
+
+            plt.tight_layout()
+            plt.ylabel('True label')
+            plt.xlabel('Predicted label')
+
             timestamp = "{:%Y%m%d%H%M%S}".format(datetime.datetime.now())
             cnf_matrix_file = "confusion_matrix_%s.png" % timestamp
             plt.savefig(cnf_matrix_file, bbox_inches='tight')
