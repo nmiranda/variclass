@@ -2,7 +2,7 @@ import matplotlib
 matplotlib.use('Agg')
 import argparse
 from features import FeatureData
-from sklearn import preprocessing, svm, model_selection, metrics
+from sklearn import preprocessing, svm, model_selection, metrics, ensemble
 import numpy as np
 import pandas as pd
 import time
@@ -110,6 +110,9 @@ def main():
     parser.add_argument('-l', '--load', help='File from which load a trained model')
     parser.add_argument('-a', '--stats', help='File to write classification performance statistics')
     parser.add_argument('-f', '--confusion', action='store_true', help='If presemt. save a png file, named with a timestamp, and containing a confusion matrix of the classification')
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-m', '--svm', action='store_true', help='Use a linear Support Vector Machine (SVM) as a model')
+    group.add_argument('-r', '--rforest', action='store_true', help='Use a Randomized Forest or Tree Ensemble as a model')
     args = parser.parse_args()
 
 
@@ -137,16 +140,22 @@ def main():
             raise ValueError("Column(s) %s has(have) invalid values. Please exclude from feature list or remove respective rows." % invalid_columns)
         training_X = scaler.transform(training_X)
 
-        param_grid = {'kernel': ['linear'], 'C': [1, 10, 100, 1000]}
+        if args.svm:
+            param_grid = {'kernel': ['linear'], 'C': [1, 10, 100, 1000]}
+            model = svm.SVC(class_weight='balanced', probability=True)
+        elif args.rforest:
+            param_grid = {'max_depth': [3, None], 'bootstrap': [True, False], 'criterion': ['gini', 'entropy']}
+            model = ensemble.RandomForestClassifier(class_weight='balanced', n_jobs=args.ncores)
 
-        model = svm.SVC(class_weight='balanced', probability=True)
-        print "Training classifier \"%s\"" % model
 
         inner_cv = model_selection.KFold(shuffle=True)
         outer_cv = model_selection.KFold(shuffle=True)
 
         modeselektor = model_selection.GridSearchCV(estimator=model, param_grid=param_grid, cv=inner_cv, n_jobs=args.ncores)
         modeselektor.fit(training_X, training_Y)
+
+        print "Model selected: \"%s\"" % modeselektor.best_estimator_
+
         f1_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='f1').mean()
         accuracy_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='accuracy').mean()
         neg_log_loss_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='neg_log_loss').mean()
@@ -222,23 +231,31 @@ def main():
             for key, value in scores.items():
                 stats_file.write("Classification score \"%s\": %f\n" % (key, value))
             stats_file.write("\n")
+            stats_file.write("Ranking of feature relevance for classification:\n")
             feature_relevance = list()
-            for feature, score in zip(features, modeselektor.best_estimator_.coef_.tolist()[0]):
+            if args.svm:
+                feat_rel_val = modeselektor.best_estimator_.coef_.tolist()[0]
+            elif args.rforest:
+                feat_rel_val = modeselektor.best_estimator_.feature_importances_
+            for feature, score in zip(features, feat_rel_val):
                 feature_relevance.append((feature, abs(score)))
             feature_relevance.sort(key=lambda x: x[1], reverse=True)
-            stats_file.write("Ranking of feature relevance for classification:\n")
             for feature, score in feature_relevance:
                 stats_file.write("%s: %s\n" % (feature, score))
-            
+                
     else:
         for key, value in scores.items():
             print "Classification score \"%s\": %f" % (key, value)
         print ""
+        print "Ranking of feature relevance for classification:"
         feature_relevance = list()
-        for feature, score in zip(features, modeselektor.best_estimator_.coef_.tolist()[0]):
+        if args.svm:
+            feat_rel_val = modeselektor.best_estimator_.coef_.tolist()[0]
+        elif args.rforest:
+            feat_rel_val = modeselektor.best_estimator_.feature_importances_
+        for feature, score in zip(features, feat_rel_val):
             feature_relevance.append((feature, abs(score)))
         feature_relevance.sort(key=lambda x: x[1], reverse=True)
-        print "Ranking of feature relevance for classification:"
         for feature, score in feature_relevance:
             print "%s: %s" % (feature, score)
 
