@@ -319,7 +319,7 @@ def load_from_fits(fits_file, args):
     try:
 #        this_lc = LightCurve(fits_data['JD'], fits_data['Q'], fits_data['errQ'])
         if args.use_z:
-            this_lc.zspec = fits_header['ZSPEC']
+            this_lc.zspec = fits_header[args.z_tag]
             this_dates = fits_data[args.dates]/(1+this_lc.zspec)
         else:
             this_dates = fits_data[args.dates]
@@ -328,13 +328,24 @@ def load_from_fits(fits_file, args):
        raise ValueError("FITS file \"{}\" data does not contain specified keys. Please check.".format(fits_file)) 
     this_lc.ra = fits_header['ALPHA']
     this_lc.dec = fits_header['DELTA']
-#    this_lc.features['u'] = fits_header['U']
-#    this_lc.features['g'] = fits_header['G']
-#    this_lc.features['r'] = fits_header['R']
-#    this_lc.features['i'] = fits_header['I']
-#    this_lc.features['z'] = fits_header['Z']
     try:
-        this_lc.obj_type = fits_header['TYPE']
+        this_lc.zspec = fits_header[args.z_tag]
+    except KeyError:
+        pass
+    try:
+        this_lc.obj_type = fits_header[args.type]
+    except KeyError:
+        pass
+    try:
+        this_lc.features['u'] = fits_header['U']
+        this_lc.features['g'] = fits_header['G']
+        this_lc.features['r'] = fits_header['R']
+        this_lc.features['i'] = fits_header['I']
+        this_lc.features['z'] = fits_header['Z']
+        this_lc.features['u-g'] = fits_header['U'] - fits_header['G']
+        this_lc.features['g-r'] = fits_header['G'] - fits_header['R']
+        this_lc.features['r-i'] = fits_header['R'] - fits_header['I']
+        this_lc.features['i-z'] = fits_header['I'] - fits_header['Z']
     except KeyError:
         pass
     return this_lc
@@ -376,6 +387,8 @@ def main():
     parser.add_argument('-e', '--mag_err', default='errQ', help='FITS header tag for magnitude error.')
     parser.add_argument('-p', '--pattern', default="*.fits", help='Pattern with wildcard to match desired FITS files.')
     parser.add_argument('-z', '--use_z', action='store_true', help='If present fix date data using redshift.')
+    parser.add_argument('-r', '--z_tag', default='ZSPEC', help='FITS header tag for redshift')
+    parser.add_argument('-t', '--type', default='TYPE', help='FITS header tag for spectral type')
     args = parser.parse_args()
 
     method_classes = [
