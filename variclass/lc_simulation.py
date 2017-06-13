@@ -133,7 +133,8 @@ def gen_lc_long(seed,time_range,dtime,mag,model,alpha,sampling,timesamp):
     return (t_drw,y,ysig,y_obs,ysig_obs)
 
 
-
+# tau entre 100 y 1000
+# SFint entre 0.1 y 0.4
 def gen_DRW_long(seed=None,time_range=2000,dtime=2,mag=19.5,errmag=0.03,tau=400,SFinf=0.2,sampling=False,timesamp=0.0):
     #function to generate a light curve with a DRW model, for a given tau and sigma
     #seed: needed to avoid problems in the random number generation when the method is used with multiprocessing

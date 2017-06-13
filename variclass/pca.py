@@ -2,9 +2,8 @@
 """
 Implements feature selection for an input csv file with features per object as rows.
 
-For more information in the methods and procedures see: http://scikit-learn.org/stable/auto_examples/decomposition/plot_pca_vs_fa_model_selection.html and http://scikit-learn.org/stable/modules/feature_selection.html
+For more information in the methods and procedures used here, see: http://scikit-learn.org/stable/auto_examples/decomposition/plot_pca_vs_fa_model_selection.html and http://scikit-learn.org/stable/modules/feature_selection.html
 """
-
 
 import matplotlib
 matplotlib.use('Agg')
@@ -34,6 +33,7 @@ def main():
     parser.add_argument('FEATURES', help='CSV file containing a list of features for objects as rows.')
     parser.add_argument('-p', '--plot', help='Plot the results of the crossvalidation process for selection of optimal number of features, in file <PLOT>.png.')
     parser.add_argument('-n', '--num_feat', type=int, help='Print the best <NUM_FEAT> features selected from the input file.')
+    parser.add_argument('-t', '--target', help='Use the feature called <TARGET> as a target for supervised learning-based selection.')
     args = parser.parse_args()
 
     input_array = pd.read_csv(args.FEATURES)
@@ -105,20 +105,22 @@ def main():
         print "Variance Threshold:"
         print sorted(zip(features.columns, variances), key=lambda x:x[1])
 
-        label_encoder = LabelEncoder().fit(input_array['class'])
-        target = label_encoder.transform(input_array['class'])
+        if args.target:
 
-        select_chi2 = SelectKBest(chi2, k=args.num_feat).fit(np.abs(features), target)
-        print "chi2:"
-        print features.columns[select_chi2.get_support()]
+            label_encoder = LabelEncoder().fit(input_array[args.target])
+            target = label_encoder.transform(input_array[args.target])
 
-        select_f_classif = SelectKBest(f_classif, k=args.num_feat).fit(features, target)
-        print "f_classif:"
-        print features.columns[select_f_classif.get_support()]
+            select_chi2 = SelectKBest(chi2, k=args.num_feat).fit(np.abs(features), target)
+            print "chi2:"
+            print features.columns[select_chi2.get_support()]
 
-        select_mutual_info_classif = SelectKBest(mutual_info_classif, k=args.num_feat).fit(features, target)
-        print "mutual_info_classif:"
-        print features.columns[select_mutual_info_classif.get_support()]
+            select_f_classif = SelectKBest(f_classif, k=args.num_feat).fit(features, target)
+            print "f_classif:"
+            print features.columns[select_f_classif.get_support()]
+
+            select_mutual_info_classif = SelectKBest(mutual_info_classif, k=args.num_feat).fit(features, target)
+            print "mutual_info_classif:"
+            print features.columns[select_mutual_info_classif.get_support()]
     
 
 if __name__=="__main__":
