@@ -9,6 +9,16 @@ from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import LSTM
 from sklearn.preprocessing import MinMaxScaler
+from keras.losses import mean_squared_error, categorical_crossentropy
+
+def loss_function(y_true, y_pred, _lambda=1):
+
+	loss_prediction = mean_squared_error(y_true[:y_true.shape[0]/2,:,-1], y_pred[:y_pred.shape[0]/2,:,-1])
+	#loss_class = categorical_crossentropy(y_true[:y_true.shape[0]/2,-1,:-1], y_pred[:y_pred.shape[0]/2,-1,:-1])
+
+	#return loss_class+_lambda*loss_prediction
+	return loss_prediction
+
 
 def main():
 
@@ -26,7 +36,7 @@ def main():
 
 	fits_files = glob.glob(os.path.join(args.dir, '*.fits'))
 	for fits_file in fits_files:
-		this_fits = pyfits.open(fits_file)
+		this_fits = pyfits.open(fits_file, memmap=False)
 		try:
 			this_data = this_fits[1].data
 		except TypeError:
@@ -44,13 +54,14 @@ def main():
 		q_list.append(this_q[:-1])
 		jd_delta_list.append(this_jd[1:] - this_jd[:-1])
 		q_pred_list.append(this_q[1:])
+		this_fits.close()
 	max_jd = max_jd-1
 
-	data_X = np.full((len(jd_list), max_jd, 3), 0.)
+	data_X = np.full((len(jd_list)*2, max_jd, 3), 0.)
 	for i in xrange(len(jd_list)):
 		data_X[i,:jd_list[i].shape[0],0] = jd_list[i]
 		data_X[i,:jd_delta_list[i].shape[0],1] = jd_delta_list[i]
-		data_X[i,:q_list[i].shape[0],1] = q_list[i]
+		data_X[i,:q_list[i].shape[0],2] = q_list[i]
 
 	#scaler = MinMaxScaler(feature_range=(0, 1))
 	#data_X[:,:,0] = scaler.fit_transform(data_X[:,:,0])
@@ -63,13 +74,14 @@ def main():
 		data_Y[i,max_jd-1,value] = 1
 		data_Y[i,:len(jd_list[i]),len(label_encoder.classes_)] = jd_list[i]
 
-	import ipdb;ipdb.set_trace()
+	#import ipdb;ipdb.set_trace()
 
 	model = Sequential()
-	model.add(LSTM(64, input_dim=4, return_sequences=True))
-	model.add(Dense(len(label_encoder.classes_)))
+	model.add(LSTM(4, input_dim=3, return_sequences=True))
+	model.add(Dense(len(label_encoder.classes_)+1))
+	#model.compile(loss=loss_function, optimizer='adam', metrics=['accuracy'])
 	model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
-	model.fit(data_X, data_Y, epochs=5, batch_size=1, verbose=2)
+	model.fit(data_X, data_Y, batch_size=4, epochs=2, verbose=2)
 	
 
 	trainPredict = model.predict(data_X)
