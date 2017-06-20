@@ -57,7 +57,8 @@ def main():
 		this_fits.close()
 	max_jd = max_jd-1
 
-	data_X = np.full((len(jd_list)*2, max_jd, 3), 0.)
+	#data_X = np.full((len(jd_list)*2, max_jd, 3), 0.)
+	data_X = np.full((len(jd_list), max_jd, 3), 0.)
 	for i in xrange(len(jd_list)):
 		data_X[i,:jd_list[i].shape[0],0] = jd_list[i]
 		data_X[i,:jd_delta_list[i].shape[0],1] = jd_delta_list[i]
@@ -68,8 +69,8 @@ def main():
 
 	label_encoder = LabelEncoder().fit(type_list)
 	type_list = label_encoder.transform(type_list)
-	data_Y = np.full((len(jd_list)*2, max_jd, len(label_encoder.classes_)+1), 0.)
-
+	#data_Y = np.full((len(jd_list)*2, max_jd, len(label_encoder.classes_)+1), 0.)
+	data_Y = np.full((len(jd_list), max_jd, len(label_encoder.classes_)+1), 0.)
 	for i, value in enumerate(type_list):
 		data_Y[i,max_jd-1,value] = 1
 		data_Y[i,:len(jd_list[i]),len(label_encoder.classes_)] = jd_list[i]
@@ -81,15 +82,12 @@ def main():
 	model.add(Dense(len(label_encoder.classes_)+1))
 	#model.compile(loss=loss_function, optimizer='adam', metrics=['accuracy'])
 	model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
-	model.fit(data_X, data_Y, batch_size=4, epochs=2, verbose=2)
+	model.fit(data_X, data_Y, epochs=2, verbose=2)
 	
 
 	trainPredict = model.predict(data_X)
 
-	print trainPredict
-
-
-	import ipdb;ipdb.set_trace()
+	print trainPredict[0]
 
 
 
