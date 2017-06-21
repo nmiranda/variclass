@@ -9,16 +9,17 @@ from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import LSTM
 from sklearn.preprocessing import MinMaxScaler
-from keras.losses import mean_squared_error, categorical_crossentropy
+from keras.losses import mean_squared_error, binary_crossentropy
+import theano
 
-def loss_function(y_true, y_pred, _lambda=1):
+def loss_function(y_true, y_pred, _lambda=0.0000000000001):
 
-	loss_prediction = mean_squared_error(y_true[:y_true.shape[0]/2,:,-1], y_pred[:y_pred.shape[0]/2,:,-1])
-	#loss_class = categorical_crossentropy(y_true[:y_true.shape[0]/2,-1,:-1], y_pred[:y_pred.shape[0]/2,-1,:-1])
+	loss_class = binary_crossentropy(y_true[:,-1,:-1], y_pred[:,-1,:-1])
+	#loss_class = mean_squared_error(y_true, y_pred)
 
-	#return loss_class+_lambda*loss_prediction
-	return loss_prediction
+	loss_pred = mean_squared_error(y_true[:,:,-1], y_pred[:,:,-1])
 
+	return loss_class + _lambda * loss_pred
 
 def main():
 
@@ -80,9 +81,9 @@ def main():
 	model = Sequential()
 	model.add(LSTM(4, input_dim=3, return_sequences=True))
 	model.add(Dense(len(label_encoder.classes_)+1))
-	#model.compile(loss=loss_function, optimizer='adam', metrics=['accuracy'])
-	model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
-	model.fit(data_X, data_Y, epochs=2, verbose=2)
+	model.compile(loss=loss_function, optimizer='adam')
+	#model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
+	model.fit(data_X, data_Y, epochs=10, verbose=2)
 	
 
 	trainPredict = model.predict(data_X)
