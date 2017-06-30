@@ -9,6 +9,8 @@ from keras.layers import Dense, LSTM, Lambda, Input, Dropout
 from keras.losses import mean_squared_error, binary_crossentropy
 from keras.layers.wrappers import TimeDistributed
 from keras.utils import plot_model
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import recall_score
 
 def main():
 
@@ -20,8 +22,11 @@ def main():
 	input_dtype = 'float32'
 	lstm_memory = 32
 	dropout_rate = 0.5
-	lambda_loss=0.0000000000001
-	batchsize = 32
+	lambda_loss=0.001
+	#lambda_loss=0.0
+	#batchsize = 32
+	batchsize = 128
+	num_epochs = 10
 
 	type_list = list()
 	jd_list = list()
@@ -71,27 +76,43 @@ def main():
 	for i in xrange(num_samples):
 		next_real[i,:q_pred_list[i].shape[0],0] = q_pred_list[i]
 
-	LastOutput = Lambda(lambda x: x[:, -1:, :], output_shape=lambda shape: (shape[0], 1, shape[2]))
 
-	_input = Input(shape=(max_jd, input_dim))
-	lstm = LSTM(lstm_memory, return_sequences=True)(_input)
-	dropout = Dropout(dropout_rate)(lstm)
-	time_distributed = TimeDistributed(Dense(1), input_shape=(max_jd, lstm_memory))(dropout)
-	last_output = LastOutput(dropout)
-	dense = Dense(1, activation="sigmoid")(last_output)
+	stratified_k_fold = StratifiedKFold(n_splits=3, shuffle=True)
+	cv_scores = list()
 
-	model = Model(inputs=[_input], outputs=[dense, time_distributed])
-	plot_model(model, "model.png")
+	for train_index, test_index in stratified_k_fold.split(jd_list, type_list):
+		
+		LastOutput = Lambda(lambda x: x[:, -1:, :], output_shape=lambda shape: (shape[0], 1, shape[2]))
+		#ClassIndicator = Lambda(lambda x: 1.0*(x > 0.5), output_shape=lambda shape: (shape[0], 1, 1))
 
-	model.compile(optimizer='adam', loss=["binary_crossentropy", "mean_squared_error"], loss_weights=[1.0, lambda_loss])
+		_input = Input(shape=(max_jd, input_dim))
+		lstm = LSTM(lstm_memory, return_sequences=True)(_input)
+		dropout = Dropout(dropout_rate)(lstm)
+		time_distributed = TimeDistributed(Dense(1), input_shape=(max_jd, lstm_memory))(dropout)
+		last_output = LastOutput(dropout)
+		dense = Dense(1, activation="sigmoid")(last_output)
+		#class_indicator = ClassIndicator(dense)
 
-	model.fit(x=[data_X], y=[class_real, next_real], batch_size=batchsize, epochs=10)
+		model = Model(inputs=[_input], outputs=[dense, time_distributed])
+		#model = Model(inputs=[_input], outputs=[class_indicator, time_distributed])
+		plot_model(model, "model.png")
 
-	trainPredict = model.predict(data_X)
+		model.compile(optimizer='adam', loss=["binary_crossentropy", "mean_squared_error"], loss_weights=[1.0, lambda_loss])
 
-	print type(trainPredict)
-	print len(trainPredict)
-	print type(trainPredict[0])
+		model.fit(x=[data_X[train_index]], y=[class_real[train_index], next_real[train_index]], batch_size=batchsize, epochs=num_epochs)
+
+		test_predict = model.predict(data_X[test_index])[0]
+		test_predict = np.reshape(test_predict, (test_predict.shape[0]))
+
+		test_predict = 1.0*(test_predict > 0.5)
+
+		score = recall_score(np.reshape(class_real[test_index].astype('int'), class_real[test_index].shape[0]), test_predict.astype('int'))
+
+		print "RECALL_SCORE:", score
+
+		cv_scores.append(score)
+
+	print cv_scores
 
 
 if __name__ == '__main__':

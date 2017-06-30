@@ -42,19 +42,17 @@ def main():
     n_features = features.columns.size
     
     pca = PCA(svd_solver='full')
-    #fa = FactorAnalysis()
+    fa = FactorAnalysis()
 
     pca_scores = list()
-    #fa_scores = list()
-
-    #import ipdb;ipdb.set_trace()
+    fa_scores = list()
     
     n_components = range(0, n_features)
     for n in n_components:
         pca.n_components = n
-        #fa.n_components = n
+        fa.n_components = n
         pca_scores.append(np.mean(cross_val_score(pca, features)))
-        #fa_scores.append(np.mean(cross_val_score(fa, features)))
+        fa_scores.append(np.mean(cross_val_score(fa, features)))
 
     n_components_pca = n_components[np.argmax(pca_scores)]
 
