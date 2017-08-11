@@ -16,6 +16,7 @@ def scale_dataset(X, mag_range=(0,1)):
 
     new_X = np.copy(X)
 
+    """
     for i in range(new_X.shape[2]):
     
         this_dataset = new_X[:,:,i]
@@ -31,12 +32,27 @@ def scale_dataset(X, mag_range=(0,1)):
         this_dataset += this_min
     
     return new_X
+    """
+
+    data_min = np.amin(new_X, axis=None)
+    data_max = np.amax(new_X, axis=None)
+
+    data_range = data_max - data_min
+    this_scale = (mag_range[1] - mag_range[0]) / data_range
+    this_min = mag_range[0] - data_min * this_scale
+
+    new_X *= this_scale
+    new_X += this_min
+    
+    return new_X
+
+
     
 
 def main():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("dir")
+    parser.add_argument("-d", "--dir")
     args = parser.parse_args()
 
     #input_dim = 3 # <----  t, dt, q(t-dt)
@@ -51,61 +67,60 @@ def main():
     batchsize = 32
     num_epochs = 1
 
-    """
-    type_list = list()
-    jd_list = list()
-    q_list = list()
-    jd_delta_list = list()
-    q_pred_list = list()
+    if args.dir:
+        type_list = list()
+        jd_list = list()
+        q_list = list()
+        jd_delta_list = list()
+        q_pred_list = list()
 
-    fits_files = glob.glob(os.path.join(args.dir, '*.fits'))
-    for fits_file in fits_files:
-        this_fits = pyfits.open(fits_file, memmap=False)
-        try:
-            this_data = this_fits[1].data
-        except TypeError:
-            continue
-        this_header = this_fits[0].header
+        fits_files = glob.glob(os.path.join(args.dir, '*.fits'))
+        for fits_file in fits_files:
+            this_fits = pyfits.open(fits_file, memmap=False)
+            try:
+                this_data = this_fits[1].data
+            except TypeError:
+                continue
+            this_header = this_fits[0].header
 
-        this_jd = this_data['JD']
-        this_q = this_data['Q']
+            this_jd = this_data['JD']
+            this_q = this_data['Q']
 
-        if this_header['TYPE_SPEC'].strip() == 'QSO':
-            type_list.append(1)
-        else:
-            type_list.append(0)
-        #jd_list.append(this_jd[1:])
-        #q_list.append(this_q[:-1])
-        #jd_delta_list.append(this_jd[1:] - this_jd[:-1])
-        #q_pred_list.append(this_q[1:])
+            if this_header['TYPE_SPEC'].strip() == 'QSO':
+                type_list.append(1)
+            else:
+                type_list.append(0)
+            #jd_list.append(this_jd[1:])
+            #q_list.append(this_q[:-1])
+            #jd_delta_list.append(this_jd[1:] - this_jd[:-1])
+            #q_pred_list.append(this_q[1:])
 
-        jd_list.append(this_jd)
-        q_list.append(this_q)
-        #jd_delta_list.append(this_jd[1:] - this_jd[:-1])
-        #_pred_list.append(this_q[1:])
+            jd_list.append(this_jd)
+            q_list.append(this_q)
+            #jd_delta_list.append(this_jd[1:] - this_jd[:-1])
+            #_pred_list.append(this_q[1:])
 
-        this_fits.close()
+            this_fits.close()
 
-    np.savez('jd_list', *jd_list)
-    np.savez('q_list', *q_list)
-    np.savez('type_list', *type_list)
-    exit()
-    """
+        np.savez('jd_list', *jd_list)
+        np.savez('q_list', *q_list)
+        np.savez('type_list', type_list)
+        exit()
+    
+    else:
 
+        jd_list = []
+        with np.load('jd_list.npz') as jd_npzfile:
+            for _, jd_array in jd_npzfile.iteritems():
+                jd_list.append(jd_array)
 
-    jd_list = []
-    with np.load('jd_list.npz') as jd_npzfile:
-        for _, jd_array in jd_npzfile.iteritems():
-            jd_list.append(jd_array)
+        q_list = []
+        with np.load('q_list.npz') as q_npzfile:
+            for _, q_array in q_npzfile.iteritems():
+                q_list.append(q_array)
 
-    q_list = []
-    with np.load('q_list.npz') as q_npzfile:
-        for _, q_array in q_npzfile.iteritems():
-            q_list.append(q_array)
-
-    class_list = []
-    with np.load('class_list.npz') as class_npzfile:
-        for _, class_array 
+        with np.load('type_list.npz') as type_npzfile:
+            type_list = type_npzfile.items()[0][1]
 
     # Input data dimensions for matrix
     max_jd = max([x.shape[0] for x in jd_list])
@@ -121,15 +136,13 @@ def main():
         data_X[i,:jd_list[i].shape[0],0] = jd_list
     """
 
-    jd_matrix = np.full((num_samples, max_jd), 0., dtype=inut_dtype)
+    jd_matrix = np.full((num_samples, max_jd), 0., dtype=input_dtype)
     for i, jd_array in enumerate(jd_list):
         jd_matrix[i,:jd_array.shape[0]] = jd_array
 
     q_matrix = np.full((num_samples, max_jd), 0., dtype=input_dtype)
     for i, q_array in enumerate(q_list):
         q_matrix[i,:q_array.shape[0]] = q_array
-
-    import ipdb;ipdb.set_trace()
 
     """
     class_real = np.asarray(type_list, dtype=input_dtype)[..., np.newaxis, np.newaxis]
@@ -139,8 +152,19 @@ def main():
 
     """
 
-    class_matrix = np.full((num_samples, max_jd), 0., dtype=input_dtype)
-    for this_class in 
+    #class_matrix = np.full((num_samples, max_jd), 0., dtype=input_dtype)
+    #class_matrix[:,-1] = type_list
+
+    class_matrix = type_list
+
+    delta_jd_matrix = jd_matrix[:,1:] - jd_matrix[:,:-1]
+    delta_jd_matrix = delta_jd_matrix.clip(min=0)
+
+    #prev_q_matrix = q_matrix[:,:-1]
+
+    #next_q_matrix = q_matrix[:,1:]
+
+
 
 
     stratified_k_fold = StratifiedKFold(n_splits=3, shuffle=True)
@@ -148,6 +172,7 @@ def main():
 
     for train_index, test_index in stratified_k_fold.split(jd_list, type_list):
 
+        ### DEFINING MODEL
         LastOutput = Lambda(lambda x: x[:, -1:, :], output_shape=lambda shape: (shape[0], 1, shape[2]))
         #ClassIndicator = Lambda(lambda x: 1.0*(x > 0.5), output_shape=lambda shape: (shape[0], 1, 1))
 
@@ -157,15 +182,33 @@ def main():
         dropout = Dropout(dropout_rate)(lstm)
         time_distributed = TimeDistributed(Dense(1), input_shape=(max_jd, lstm_memory))(dropout)
         last_output = LastOutput(dropout)
-        dense1 = Dense(32, activation='sigmoid')(last_output)
-        dense2 = Dense(1, activation="sigmoid")(dense1)
+        dense = Dense(1, activation="sigmoid")(last_output)
         #class_indicator = ClassIndicator(dense)
 
-        model = Model(inputs=[_input], outputs=[dense2, time_distributed])
+        model = Model(inputs=[_input], outputs=[dense, time_distributed])
         #model = Model(inputs=[_input], outputs=[class_indicator, time_distributed])
         plot_model(model, "model.png")
 
         model.compile(optimizer='adam', loss=["binary_crossentropy", "mean_squared_error"], loss_weights=[1.0, lambda_loss])
+
+
+
+        train_delta_jd = scale_dataset(delta_jd_matrix[train_index])
+        train_q = scale_dataset(q_matrix[train_index])
+        train_prev_q = train_q[:,:-1]
+        train_next_q = train_q[:,1:]
+        train_class = class_matrix[train_index]
+
+        train_X = np.stack((train_delta_jd, train_prev_q), axis=2)
+
+        import ipdb;ipdb.set_trace()
+
+
+        
+
+
+
+
 
         train_X = scale_dataset(data_X[train_index])
 
