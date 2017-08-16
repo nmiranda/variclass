@@ -155,7 +155,7 @@ def main():
     #class_matrix = np.full((num_samples, max_jd), 0., dtype=input_dtype)
     #class_matrix[:,-1] = type_list
 
-    class_matrix = type_list
+    class_matrix = type_list[..., np.newaxis, np.newaxis]
 
     delta_jd_matrix = jd_matrix[:,1:] - jd_matrix[:,:-1]
     delta_jd_matrix = delta_jd_matrix.clip(min=0)
@@ -176,12 +176,15 @@ def main():
         LastOutput = Lambda(lambda x: x[:, -1:, :], output_shape=lambda shape: (shape[0], 1, shape[2]))
         #ClassIndicator = Lambda(lambda x: 1.0*(x > 0.5), output_shape=lambda shape: (shape[0], 1, 1))
 
-        _input = Input(shape=(max_jd, input_dim))
+        #_input = Input(shape=(max_jd, input_dim))
+        _input = Input(shape=(max_jd-1, input_dim))
         #lstm = LSTM(lstm_memory, return_sequences=True, activation='relu')(_input)
         lstm = LSTM(lstm_memory, return_sequences=True, activation='tanh')(_input)
-        dropout = Dropout(dropout_rate)(lstm)
-        time_distributed = TimeDistributed(Dense(1), input_shape=(max_jd, lstm_memory))(dropout)
-        last_output = LastOutput(dropout)
+        #dropout = Dropout(dropout_rate)(lstm)
+        #time_distributed = TimeDistributed(Dense(1), input_shape=(max_jd, lstm_memory))(dropout)
+        #last_output = LastOutput(dropout)
+        time_distributed = TimeDistributed(Dense(1), input_shape=(max_jd, lstm_memory))(lstm)
+        last_output = LastOutput(lstm)
         dense = Dense(1, activation="sigmoid")(last_output)
         #class_indicator = ClassIndicator(dense)
 
@@ -191,31 +194,23 @@ def main():
 
         model.compile(optimizer='adam', loss=["binary_crossentropy", "mean_squared_error"], loss_weights=[1.0, lambda_loss])
 
-
-
         train_delta_jd = scale_dataset(delta_jd_matrix[train_index])
         train_q = scale_dataset(q_matrix[train_index])
         train_prev_q = train_q[:,:-1]
-        train_next_q = train_q[:,1:]
+        train_next_q = train_q[:,1:][..., np.newaxis]
         train_class = class_matrix[train_index]
 
         train_X = np.stack((train_delta_jd, train_prev_q), axis=2)
 
-        import ipdb;ipdb.set_trace()
+        #import ipdb;ipdb.set_trace()
 
+        #train_X = scale_dataset(data_X[train_index])
 
+        #train_class = np.copy(class_real[train_index])
+        #train_next = scale_dataset(np.copy(next_real[train_index]))
         
-
-
-
-
-
-        train_X = scale_dataset(data_X[train_index])
-
-        train_class = np.copy(class_real[train_index])
-        train_next = scale_dataset(np.copy(next_real[train_index]))
-
-        model.fit(x=[train_X], y=[train_class, train_next], batch_size=batchsize, epochs=num_epochs)
+        #model.fit(x=[train_X], y=[train_class, train_next], batch_size=batchsize, epochs=num_epochs)
+        model.fit(x=[train_X], y=[train_class, train_next_q], batch_size=batchsize, epochs=num_epochs)
 
         #test_predict = model.predict(scale_dataset(data_X[test_index]))[0]
         test_predict = model.predict(scale_dataset(train_X))[0]
