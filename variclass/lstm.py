@@ -190,7 +190,7 @@ def main():
 
         model = Model(inputs=[_input], outputs=[dense, time_distributed])
         #model = Model(inputs=[_input], outputs=[class_indicator, time_distributed])
-        plot_model(model, "model.png")
+        #plot_model(model, "model.png")
 
         model.compile(optimizer='adam', loss=["binary_crossentropy", "mean_squared_error"], loss_weights=[1.0, lambda_loss])
 
@@ -219,13 +219,13 @@ def main():
         test_predict = 1.0*(test_predict > 0.5)
 
         #rec_score = recall_score(np.reshape(class_real[test_index].astype('int'), class_real[test_index].shape[0]), test_predict.astype('int'))
-        rec_score = recall_score(np.reshape(class_real[train_index].astype('int'), class_real[train_index].shape[0]), test_predict.astype('int'))
+        rec_score = recall_score(np.reshape(class_matrix[train_index].astype('int'), class_matrix[train_index].shape[0]), test_predict.astype('int'))
 
-        print "RECALL_SCORE:", rec_score
+        print("RECALL_SCORE:", rec_score)
 
         cv_scores.append(rec_score)
 
-    print cv_scores
+    print(cv_scores)
 
 
 if __name__ == '__main__':
