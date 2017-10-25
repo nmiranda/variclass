@@ -13,6 +13,7 @@ from sklearn import metrics
 from sklearn.model_selection import train_test_split
 import time
 import matplotlib.pyplot as plt
+import data
 
 def scale_dataset(X, mag_range=(0,1)):
     """
@@ -53,64 +54,13 @@ def main():
     validation_ratio = 0.33
     scale = False
     stats_dir = os.path.join(os.pardir, os.pardir, 'data', 'results')
+    augment_data_factor = 2
 
-    if args.dir:
-        # Reading from a directory of .fits files
-        type_list = list()
-        jd_list = list()
-        q_list = list()
-        jd_delta_list = list()
-        q_pred_list = list()
-
-        fits_files = glob.glob(os.path.join(args.dir, '*.fits'))
-        for fits_file in fits_files:
-            this_fits = pyfits.open(fits_file, memmap=False)
-            try:
-                this_data = this_fits[1].data
-            except TypeError:
-                continue
-            this_header = this_fits[0].header
-
-            this_jd = this_data['JD']
-            this_q = this_data['Q']
-
-            if this_header['TYPE_SPEC'].strip() == 'QSO':
-                type_list.append(1)
-            else:
-                type_list.append(0)
-
-            jd_list.append(this_jd)
-            q_list.append(this_q)
-
-            this_fits.close()
-
-        np.savez('jd_list', *jd_list)
-        np.savez('q_list', *q_list)
-        np.savez('type_list', type_list)
-        exit()
-    
+    # Load light curve data
+    if augment_data_factor:
+        jd_list, q_list, q_err_list, type_list = data.load(directory=args.dir, subset=args.subset, with_errors=True)
     else:
-        # Reading from saved dataset files
-        jd_list = []
-        with np.load('jd_list.npz') as jd_npzfile:
-            for _, jd_array in jd_npzfile.iteritems():
-                jd_list.append(jd_array)
-
-        q_list = []
-        with np.load('q_list.npz') as q_npzfile:
-            for _, q_array in q_npzfile.iteritems():
-                q_list.append(q_array)
-
-        with np.load('type_list.npz') as type_npzfile:
-            type_list = type_npzfile.items()[0][1]
-
-    #jd_list, q_list, type_list = data.load(args.dir)
-
-    # Option for selecting a subset
-    if args.subset and (args.subset < len(jd_list)):
-        jd_list = jd_list[:args.subset]
-        q_list = q_list[:args.subset]
-        type_list = type_list[:args.subset]
+        jd_list, q_list, type_list = data.load(directory=args.dir, subset=args.subset, with_errors=False)
 
     # Input data dimensions for matrix
     max_jd = max([x.shape[0] for x in jd_list])
@@ -125,10 +75,19 @@ def main():
     for i, q_array in enumerate(q_list):
         q_matrix[i,:q_array.shape[0]] = q_array
 
-    class_matrix = type_list[..., np.newaxis]
+    if augment_data_factor:
+        q_err_matrix = np.full((num_samples, max_jd), 0., dtype=input_dtype)
+        for i, q_err_array in enumerate(q_err_list):
+            q_err_matrix[i,:q_err_array.shape[0]] = q_err_array
+
+    class_matrix = np.asarray(type_list)[..., np.newaxis]
 
     delta_jd_matrix = jd_matrix[:,1:] - jd_matrix[:,:-1]
     delta_jd_matrix = delta_jd_matrix.clip(min=0)
+
+    q_matrix = q_matrix[:,:-1]
+    if augment_data_factor:
+        q_err_matrix = q_err_matrix[:,:-1]
 
     ### DEFINING MODEL
     _input = Input(shape=(max_jd-1, input_dim))
@@ -151,31 +110,78 @@ def main():
 
     model.compile(optimizer=model_optimizer, loss="binary_crossentropy", metrics=['accuracy'])
 
-    # Scaling dataset
-    if scale_dataset:
-        train_delta_jd = scale_dataset(delta_jd_matrix)
-        train_q = scale_dataset(q_matrix)
-    else:
-        train_delta_jd = delta_jd_matrix
-        train_q = q_matrix
-    train_prev_q = train_q[:,:-1]
-    train_next_q = train_q[:,1:][..., np.newaxis]
-    train_class = class_matrix
+    #train_delta_jd = delta_jd_matrix
+    #train_q = q_matrix[:,:-1]
+    #train_class = class_matrix
 
-    train_X = np.stack((train_delta_jd, train_prev_q), axis=2)
+    #train_X = np.stack((train_delta_jd, train_q), axis=2)
     #train_X = train_X.reshape(train_X.shape[0], 1, train_X.shape[1], train_X.shape[2])
 
-    train_X, test_X, train_class, test_class = train_test_split(train_X, train_class, test_size=validation_ratio)
+    """
+    histories = list()
+
+    for i in xrange(3):
+
+        train_X, test_X, train_class, test_class = train_test_split(train_X, train_class, test_size=validation_ratio)
+
+        start_time = time.time()
+        history = model.fit(x=[train_X], y=[train_class], batch_size=batchsize, epochs=num_epochs, validation_data=(test_X, test_class))
+        total_time = time.time() - start_time
+
+        # Evaluating model
+        test_dataset = test_X
+        test_predict = model.predict(test_dataset)
+
+        test_predict = np.reshape(test_predict, (test_predict.shape[0]))
+        test_predict = 1.0*(test_predict > 0.5)
+
+        rec_score = metrics.recall_score(np.reshape(test_class.astype('int'), test_class.shape[0]), test_predict.astype('int'))
+        f1_score = metrics.f1_score(np.reshape(test_class.astype('int'), test_class.shape[0]), test_predict.astype('int'))
+        acc_score = metrics.accuracy_score(np.reshape(test_class.astype('int'), test_class.shape[0]), test_predict.astype('int'))
+
+        histories.append({
+            'start_time': start_time,
+            'end_time': end_time,
+            'history': history.history
+            'rec_score': rec_score
+            'f1_score': f1_score,
+            'acc_score': acc_score
+            })
+
+        print("RECALL_SCORE:", rec_score)
+
+    """
+
+    if augment_data_factor:
+
+        train_delta_jd_matrix, test_delta_jd_matrix, train_q_matrix, test_q_matrix, train_q_err_matrix, test_q_err_matrix, train_class_matrix, test_class_matrix = train_test_split(delta_jd_matrix, q_matrix, q_err_matrix, class_matrix, test_size=validation_ratio)
+
+        augmented_train_q_matrix = np.full((train_q_matrix.shape[0] * augment_data_factor, max_jd-1), 0., dtype=input_dtype)
+        augmented_train_delta_jd_matrix = np.full((train_q_matrix.shape[0] * augment_data_factor, max_jd-1), 0., dtype=input_dtype)
+        augmented_train_class_matrix = np.full((train_q_matrix.shape[0] * augment_data_factor, 1), 0)
+        for num_augment_cycle in range(augment_data_factor):
+            for i in xrange(train_q_matrix.shape[0]):
+                for j in xrange(train_q_matrix.shape[1]):
+                    augmented_train_q_matrix[(num_augment_cycle * train_q_matrix.shape[0] + i), j] = np.random.normal(train_q_matrix[i,j], train_q_err_matrix[i,j])
+                    augmented_train_delta_jd_matrix[(num_augment_cycle * train_q_matrix.shape[0] + i), j] = train_delta_jd_matrix[i,j]
+                augmented_train_class_matrix[(num_augment_cycle * train_q_matrix.shape[0] + i), 0] = train_class_matrix[i,0]
+
+        train_X = np.stack((augmented_train_delta_jd_matrix, augmented_train_q_matrix), axis=2)
+        train_class = augmented_train_class_matrix
+        test_X = np.stack((test_delta_jd_matrix, test_q_matrix), axis=2)
+        test_class = test_class_matrix
+
+
+    #train_X, test_X, train_class, test_class = train_test_split(train_X, train_class, test_size=validation_ratio)
+
+    #import ipdb;ipdb.set_trace()
 
     start_time = time.time()
     history = model.fit(x=[train_X], y=[train_class], batch_size=batchsize, epochs=num_epochs, validation_data=(test_X, test_class))
     total_time = time.time() - start_time
 
-    # Evaluating model in the same training dataset (just for testing purposes)
-    if scale:
-        test_dataset = scale_dataset(train_X)
-    else:
-        test_dataset = test_X
+    # Evaluating model
+    test_dataset = test_X
     test_predict = model.predict(test_dataset)
 
     test_predict = np.reshape(test_predict, (test_predict.shape[0]))
