@@ -13,67 +13,19 @@ from keras.optimizers import Adam, SGD
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.metrics import recall_score, confusion_matrix
 import time
-import matplotlib.pyplot as plt
-import itertools
+import data
+import plot
 
-def scale_dataset(X, mag_range=(0,1)):
-    """
-    Function to scale the whole magnitude time series dataset to a given range
-    """
 
-    new_X = np.copy(X)
-
-    data_min = np.amin(new_X, axis=None)
-    data_max = np.amax(new_X, axis=None)
-
-    data_range = data_max - data_min
-    this_scale = (mag_range[1] - mag_range[0]) / data_range
-    this_min = mag_range[0] - data_min * this_scale
-
-    new_X *= this_scale
-    new_X += this_min
-    
-    return new_X
-
-def plot_confusion_matrix(cm, classes,
-                          normalize=False,
-                          title='Confusion matrix',
-                          cmap=plt.cm.Blues):
-    """
-    This function prints and plots the confusion matrix.
-    Normalization can be applied by setting `normalize=True`.
-    """
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        print("Normalized confusion matrix")
-    else:
-        print('Confusion matrix, without normalization')
-
-    print(cm)
-
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    plt.title(title)
-    plt.colorbar()
-    tick_marks = np.arange(len(classes))
-    plt.xticks(tick_marks, classes, rotation=45)
-    plt.yticks(tick_marks, classes)
-
-    fmt = '.2f' if normalize else 'd'
-    thresh = cm.max() / 2.
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        plt.text(j, i, format(cm[i, j], fmt),
-                 horizontalalignment="center",
-                 color="white" if cm[i, j] > thresh else "black")
-
-    plt.tight_layout()
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
 
 def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dir")
+    parser.add_argument('-t', '--top', type=float)
     parser.add_argument("-i", "--inner", action='store_true')
+    parser.add_argument("-a", '--augment', type=int)
+    parser.add_argument("-e", '--epochs', type=int)
     args = parser.parse_args()
 
     # Model parameters
@@ -84,60 +36,15 @@ def main():
     dense_activation = "sigmoid"
     lambda_loss=0.05
     batchsize = 32
-    num_epochs = 25
+    num_epochs = args.epochs
     stats_dir = os.path.join(os.pardir, os.pardir, 'data', 'results')
     validation_ratio = 0.3
     inner_validation = args.inner
 
-    if args.dir:
-        # Reading from a directory of .fits files
-        type_list = list()
-        jd_list = list()
-        q_list = list()
-        jd_delta_list = list()
-        q_pred_list = list()
-
-        fits_files = glob.glob(os.path.join(args.dir, '*.fits'))
-        for fits_file in fits_files:
-            this_fits = pyfits.open(fits_file, memmap=False)
-            try:
-                this_data = this_fits[1].data
-            except TypeError:
-                continue
-            this_header = this_fits[0].header
-
-            this_jd = this_data['JD']
-            this_q = this_data['Q']
-
-            if this_header['TYPE_SPEC'].strip() == 'QSO':
-                type_list.append(1)
-            else:
-                type_list.append(0)
-
-            jd_list.append(this_jd)
-            q_list.append(this_q)
-
-            this_fits.close()
-
-        np.savez('jd_list', *jd_list)
-        np.savez('q_list', *q_list)
-        np.savez('type_list', type_list)
-        exit()
-    
+    if args.augment:
+        jd_list, q_list, q_err_list, type_list = data.load(directory=args.dir, with_errors=True, sel_longest=args.top)
     else:
-        # Reading from saved dataset files
-        jd_list = []
-        with np.load('jd_list.npz') as jd_npzfile:
-            for _, jd_array in jd_npzfile.iteritems():
-                jd_list.append(jd_array)
-
-        q_list = []
-        with np.load('q_list.npz') as q_npzfile:
-            for _, q_array in q_npzfile.iteritems():
-                q_list.append(q_array)
-
-        with np.load('type_list.npz') as type_npzfile:
-            type_list = type_npzfile.items()[0][1]
+        jd_list, q_list, type_list = data.load(directory=args.dir, with_errors=False, sel_longest=args.top)
 
     # Input data dimensions for matrix
     max_jd = max([x.shape[0] for x in jd_list])
@@ -153,6 +60,11 @@ def main():
     for i, q_array in enumerate(q_list):
         q_matrix[i,:q_array.shape[0]] = q_array
 
+    if args.augment:
+        q_err_matrix = np.full((num_samples, max_jd), 0., dtype=input_dtype)
+        for i, q_err_array in enumerate(q_err_list):
+            q_err_matrix[i,:q_err_array.shape[0]] = q_err_array
+
     #class_matrix = type_list[..., np.newaxis, np.newaxis]
     class_matrix = type_list[..., np.newaxis]
 
@@ -161,7 +73,7 @@ def main():
 
     ### DEFINING MODEL
     #LastOutput = Lambda(lambda x: x[:, -1:, :], output_shape=lambda shape: (shape[0], 1, shape[2]))
-    LastOutput = Lambda(lambda x: x[:, median_jd-1:median_jd, :], output_shape=lambda shape: (shape[0], 1, shape[2]))
+    #LastOutput = Lambda(lambda x: x[:, median_jd-1:median_jd, :], output_shape=lambda shape: (shape[0], 1, shape[2]))
 
     SelectPredict = Lambda(lambda x: x[:, :, :lstm_memory/2], output_shape=lambda shape: (shape[0], shape[1], lstm_memory/2))
     SelectClassify = Lambda(lambda x: x[:, :, lstm_memory/2:], output_shape=lambda shape: (shape[0], shape[1], lstm_memory/2))
@@ -220,16 +132,43 @@ def main():
 
         print("RECALL_SCORE:", rec_score)
 
-        for loss_vals in history.history.values():
-            plt.plot(loss_vals)
-        plt.title('model loss')
-        plt.ylabel('loss')
-        plt.xlabel('epoch')
-        plt.legend(history.history.keys(), loc='best')
-        plt.savefig(os.path.join(stats_dir, 'lstm_' + start_time_str + '.png'))
+        plot.learning_process(history, start_time_str)
 
     else:
-        train_delta_jd, test_delta_jd, train_q_matrix, test_q_matrix, train_class_matrix, test_class_matrix = train_test_split(delta_jd_matrix, q_matrix, class_matrix, test_size=validation_ratio)
+
+        if args.augment:
+
+            augment_data_factor = args.augment
+
+            train_jd_matrix, test_jd_matrix, train_q_matrix, test_q_matrix, train_q_err_matrix, test_q_err_matrix, train_class_matrix, test_class_matrix = train_test_split(jd_matrix, q_matrix, q_err_matrix, class_matrix, test_size=validation_ratio)
+
+            augmented_train_q_matrix = np.full((train_q_matrix.shape[0] * augment_data_factor, train_q_matrix.shape[1]), 0., dtype=input_dtype)
+            augmented_train_jd_matrix = np.full((train_jd_matrix.shape[0] * augment_data_factor, train_jd_matrix.shape[1]), 0., dtype=input_dtype)
+            augmented_train_class_matrix = np.full((train_q_matrix.shape[0] * augment_data_factor, 1), 0)
+            for num_augment_cycle in range(augment_data_factor):
+                for i in xrange(train_q_matrix.shape[0]):
+                    for j in xrange(train_q_matrix.shape[1]):
+                        augmented_train_q_matrix[(num_augment_cycle * train_q_matrix.shape[0] + i), j] = np.random.normal(train_q_matrix[i,j], train_q_err_matrix[i,j])
+                        augmented_train_jd_matrix[(num_augment_cycle * train_q_matrix.shape[0] + i), j] = train_jd_matrix[i,j]
+                    augmented_train_class_matrix[(num_augment_cycle * train_q_matrix.shape[0] + i), 0] = train_class_matrix[i,0]
+
+            train_delta_jd = augmented_train_jd_matrix[:,1:] - augmented_train_jd_matrix[:,:-1]
+            train_delta_jd = train_delta_jd.clip(min=0)
+
+            test_delta_jd = test_jd_matrix[:,1:] - test_jd_matrix[:,:-1]
+            test_delta_jd = test_delta_jd.clip(min=0)
+
+            # train_X = np.stack((augmented_train_delta_jd, augmented_train_q_matrix), axis=2)
+            # train_class = augmented_train_class_matrix
+            # test_X = np.stack((test_delta_jd, test_q_matrix), axis=2)
+            # test_class = test_class_matrix
+
+            train_q_matrix = augmented_train_q_matrix
+            train_class_matrix = augmented_train_class_matrix
+
+        else:
+
+            train_delta_jd, test_delta_jd, train_q_matrix, test_q_matrix, train_class_matrix, test_class_matrix = train_test_split(delta_jd_matrix, q_matrix, class_matrix, test_size=validation_ratio)
 
         train_prev_q = train_q_matrix[:,:-1]
         train_next_q = train_q_matrix[:,1:][..., np.newaxis]
@@ -253,25 +192,25 @@ def main():
         print("RECALL_SCORE:", rec_score)
 
         cnf_matrix = confusion_matrix(test_class_matrix, test_predict)
-
-        plt.figure()
-        plot_confusion_matrix(cnf_matrix, classes=('NON-QSO', 'QSO'), normalize=True, title='Normalized confusion matrix')
-        plt.savefig(os.path.join(stats_dir, 'lstm_conf_matrix_' + start_time_str + '.png'))
-
+        plot.confusion_matrix(cnf_matrix, classes=('NON-QSO', 'QSO'), normalize=False, title='Normalized confusion matrix', time_str=start_time_str)
 
     with open(os.path.join(stats_dir, 'lstm_' + start_time_str + '.txt'), 'w') as stats_file:
 
         stats_file.write("Inner validation: " + str(inner_validation) + "\n")
+        stats_file.write("Augment factor: " + str(args.augment) + "\n")
         stats_file.write("Lstm memory: " + str(lstm_memory) + "\n")
         stats_file.write("Lstm activation: " + str(lstm_activation) + "\n")
         stats_file.write("Dense activation: " + str(dense_activation) + "\n")
         stats_file.write("Lambda loss: " + str(lambda_loss) + "\n")
+        stats_file.write("Number of samples: " + str(num_samples) + "\n")
         stats_file.write("Batch size: " + str(batchsize) + "\n")
         stats_file.write("Num epochs: " + str(num_epochs) + "\n")
         stats_file.write("Optimizer: " + str(model_optimizer.__class__()) + "\n")
         stats_file.write("Optimizer config: " + str(model_optimizer.get_config()) + "\n")
         stats_file.write("Recall score: " + str(rec_score) + "\n")
         stats_file.write("Execution time: " + str(total_time) + " seconds (" + str(total_time/60.0) + " minutes)\n")
+        stats_file.write("Select longest series: " + str(args.top) + "\n")
+        stats_file.write("Confusion matrix: " + str(cnf_matrix) + "\n")
         stats_file.write(str(history.history) + "\n")
         stats_file.write("Model config: " + str(model.get_config()) + "\n")
 
