@@ -25,7 +25,8 @@ def main():
     parser.add_argument('-t', '--top', type=float)
     parser.add_argument("-i", "--inner", action='store_true')
     parser.add_argument("-a", '--augment', type=int)
-    parser.add_argument("-e", '--epochs', type=int)
+    parser.add_argument("-e", '--epochs', type=int, default=25)
+    parser.add_argument("-s", '--simulate', type=int)
     args = parser.parse_args()
 
     # Model parameters
@@ -43,6 +44,8 @@ def main():
 
     if args.augment:
         jd_list, q_list, q_err_list, type_list = data.load(directory=args.dir, with_errors=True, sel_longest=args.top)
+    elif args.simulate:
+        jd_list, q_list, type_list = data.simulate(args.simulate)
     else:
         jd_list, q_list, type_list = data.load(directory=args.dir, with_errors=False, sel_longest=args.top)
 
@@ -80,9 +83,10 @@ def main():
 
     _input = Input(shape=(max_jd-1, input_dim))
     lstm_1 = LSTM(lstm_memory, return_sequences=True, activation=lstm_activation)(_input)
-    select_predict = SelectPredict(lstm_1)
+    lstm_2 = LSTM(lstm_memory, return_sequences=True, activation=lstm_activation)(lstm_1)
+    select_predict = SelectPredict(lstm_2)
     time_distributed = TimeDistributed(Dense(1), input_shape=(max_jd, lstm_memory))(select_predict)
-    select_classify = SelectClassify(lstm_1)
+    select_classify = SelectClassify(lstm_2)
     flatten = Flatten()(select_classify)
     dense = Dense(1, activation=dense_activation)(flatten)
 
@@ -198,6 +202,7 @@ def main():
 
         stats_file.write("Inner validation: " + str(inner_validation) + "\n")
         stats_file.write("Augment factor: " + str(args.augment) + "\n")
+        stats_file.write("Simulate samples: " + str(args.simulate) + "\n")
         stats_file.write("Lstm memory: " + str(lstm_memory) + "\n")
         stats_file.write("Lstm activation: " + str(lstm_activation) + "\n")
         stats_file.write("Dense activation: " + str(dense_activation) + "\n")

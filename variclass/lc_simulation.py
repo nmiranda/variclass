@@ -7,7 +7,7 @@ from astroML.fourier import PSD_continuous
 import time
 
 
-def lc_sim(nn, delt, mean_lc, model, alpha):
+def lc_sim(nn, delt, mean_lc, model, alpha=2, nu_knee=0.005):
 
     '''
     Python function to simulate a light curve given a model power spectrum
@@ -43,8 +43,10 @@ def lc_sim(nn, delt, mean_lc, model, alpha):
 
     elif model == 'bending-pl':
 
-        a = 1000.0
-        nu_knee = 0.005
+        #a = 1000.0
+        a = 100000.0
+        # 10^-6 (+- 10^-7)s
+        #nu_knee = 0.005
         alpha_lo = 1.0
         alpha_hi = alpha
         noise = 0.0
@@ -75,7 +77,7 @@ def lc_sim(nn, delt, mean_lc, model, alpha):
 
 
 
-def gen_lc_long(seed,time_range,dtime,mag,model,alpha,sampling,timesamp):
+def gen_lc_long(seed,time_range,dtime,mag,errmag,model,alpha,sampling,timesamp,nu_knee):
     #function to generate a light curve with a given PSD model
     #seed: needed to avoid problems in the random number generation when the method is used with multiprocessing
     #time_range=2000 light curve length
@@ -95,7 +97,7 @@ def gen_lc_long(seed,time_range,dtime,mag,model,alpha,sampling,timesamp):
 
     np.random.seed(int((time.clock()+seed*np.random.rand())))
     #np.random.seed(int(seed))
-    y=lc_sim(tbase, dtbase, mag, model, alpha)
+    y=lc_sim(tbase, dtbase, mag, model, alpha, nu_knee)
 
     ysig=np.zeros(len(y))
     ysig_obs=np.ones(len(y))*errmag
@@ -106,7 +108,7 @@ def gen_lc_long(seed,time_range,dtime,mag,model,alpha,sampling,timesamp):
         timesamp=np.round(timesamp,decimals=0).astype(np.int)
         tstar = np.random.randint(14600,tbase-np.int((timesamp[-1]-timesamp[0])),size=1)
         t_drw = tstar+((timesamp-timesamp[0]))
-        print t_drw
+        #print t_drw
 
         y=y[t_drw]
         ysig=ysig[t_drw]
@@ -133,9 +135,8 @@ def gen_lc_long(seed,time_range,dtime,mag,model,alpha,sampling,timesamp):
     return (t_drw,y,ysig,y_obs,ysig_obs)
 
 
-# tau entre 100 y 1000
-# SFint entre 0.1 y 0.4
-def gen_DRW_long(seed=None,time_range=2000,dtime=2,mag=19.5,errmag=0.03,tau=400,SFinf=0.2,sampling=False,timesamp=0.0):
+
+def gen_DRW_long(seed,time_range=2000,dtime=2,mag=19.5,errmag=0.03,tau=400,SFinf=0.2,sampling=False,timesamp=0.0):
     #function to generate a light curve with a DRW model, for a given tau and sigma
     #seed: needed to avoid problems in the random number generation when the method is used with multiprocessing
     #recomended values:
@@ -153,11 +154,8 @@ def gen_DRW_long(seed=None,time_range=2000,dtime=2,mag=19.5,errmag=0.03,tau=400,
 
     #t_drw=np.arange(0,time_range,dtime)
 
-    #np.random.seed(int((time.clock()+seed)))
-    if seed is None:
-        seed = int(time.time() * 100)
-
-    np.random.seed(int(seed))
+    np.random.seed(int((time.clock()+seed)))
+    #np.random.seed(int(seed))
 
     #sigma=SFinf*np.sqrt(2.0/tau)
     #y = mag + cm.carma_process(t_drw, sigma, np.atleast_1d(-1.0 / tau),ma_coefs=[1.0])
@@ -219,3 +217,8 @@ def gen_DRW_long(seed=None,time_range=2000,dtime=2,mag=19.5,errmag=0.03,tau=400,
     #plt.show()
 
     return (t_drw,y,ysig,y_obs,ysig_obs)
+
+
+def gen_gaussian_noise(times, mag_mean, err_mean):
+
+    return np.random.normal(mag_mean, err_mean, times.shape)
