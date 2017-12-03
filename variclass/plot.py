@@ -20,7 +20,8 @@ def confusion_matrix(cm, classes,
                           normalize=False,
                           title='Confusion matrix',
                           cmap=plt.cm.Blues,
-                          time_str=None):
+                          time_str=None,
+                          model_name=None):
     """
     This function prints and plots the confusion matrix.
     Normalization can be applied by setting `normalize=True`.
@@ -51,7 +52,7 @@ def confusion_matrix(cm, classes,
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
-    plt.savefig(os.path.join(stats_dir, 'lstm_conf_matrix_' + time_str + '.png'))
+    plt.savefig(os.path.join(stats_dir, model_name + '_conf_matrix_' + time_str + '.png'))
 
 def main():
 

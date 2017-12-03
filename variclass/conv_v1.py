@@ -38,7 +38,11 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dir")
-    parser.add_argument("-s", "--subset", type=int)
+    parser.add_argument('-t', '--top', type=float)
+    parser.add_argument("-i", "--inner", action='store_true')
+    parser.add_argument("-a", '--augment', type=int)
+    parser.add_argument("-e", '--epochs', type=int, default=25)
+    parser.add_argument("-s", '--simulate', type=int)
     args = parser.parse_args()
 
     # Model parameters
@@ -48,22 +52,24 @@ def main():
     dense_activation = "sigmoid"
     batchsize = 32
     dense_dim = 64
-    num_epochs = 100
+    num_epochs = args.epochs
     window_size = 5
     dropout_rate = 0.25
     validation_ratio = 0.33
     scale = False
     stats_dir = os.path.join(os.pardir, os.pardir, 'data', 'results')
-    augment_data_factor = 2
 
     # Load light curve data
-    if augment_data_factor:
-        jd_list, q_list, q_err_list, type_list = data.load(directory=args.dir, subset=args.subset, with_errors=True)
+    if args.augment:
+        jd_list, q_list, q_err_list, type_list = data.load(directory=args.dir, with_errors=True, sel_longest=args.top)
+    elif args.simulate:
+        jd_list, q_list, type_list = data.simulate(args.simulate)
     else:
-        jd_list, q_list, type_list = data.load(directory=args.dir, subset=args.subset, with_errors=False)
+        jd_list, q_list, type_list = data.load(directory=args.dir, with_errors=False, sel_longest=args.top)
 
     # Input data dimensions for matrix
     max_jd = max([x.shape[0] for x in jd_list])
+    median_jd = int(np.median([x.shape[0] for x in jd_list]))
     num_samples = len(jd_list)
 
     # Initializing matrixes
@@ -75,12 +81,13 @@ def main():
     for i, q_array in enumerate(q_list):
         q_matrix[i,:q_array.shape[0]] = q_array
 
-    if augment_data_factor:
+    if args.augment:
         q_err_matrix = np.full((num_samples, max_jd), 0., dtype=input_dtype)
         for i, q_err_array in enumerate(q_err_list):
             q_err_matrix[i,:q_err_array.shape[0]] = q_err_array
 
-    class_matrix = np.asarray(type_list)[..., np.newaxis]
+    #class_matrix = np.asarray(type_list)[..., np.newaxis]
+    class_matrix = type_list[..., np.newaxis]
 
     delta_jd_matrix = jd_matrix[:,1:] - jd_matrix[:,:-1]
     delta_jd_matrix = delta_jd_matrix.clip(min=0)
@@ -152,7 +159,9 @@ def main():
 
     """
 
-    if augment_data_factor:
+    if args.augment:
+
+        augment_data_factor = args.augment
 
         train_delta_jd_matrix, test_delta_jd_matrix, train_q_matrix, test_q_matrix, train_q_err_matrix, test_q_err_matrix, train_class_matrix, test_class_matrix = train_test_split(delta_jd_matrix, q_matrix, q_err_matrix, class_matrix, test_size=validation_ratio)
 
@@ -177,7 +186,8 @@ def main():
     #import ipdb;ipdb.set_trace()
 
     start_time = time.time()
-    history = model.fit(x=[train_X], y=[train_class], batch_size=batchsize, epochs=num_epochs, validation_data=(test_X, test_class))
+    #history = model.fit(x=[train_X], y=[train_class], batch_size=batchsize, epochs=num_epochs, validation_data=(test_X, test_class))
+    history = model.fit(x=[train_X], y=[train_class], batch_size=batchsize, epochs=num_epochs)
     total_time = time.time() - start_time
 
     # Evaluating model
