@@ -77,7 +77,7 @@ def lc_sim(nn, delt, mean_lc, model, alpha=2, nu_knee=0.005):
 
 
 
-def gen_lc_long(seed,time_range,dtime,mag,errmag,model,alpha,sampling,timesamp,nu_knee):
+def gen_lc_long(seed,time_range,dtime,mag,errmag,model,alpha,sampling,timestamp,nu_knee):
     #function to generate a light curve with a given PSD model
     #seed: needed to avoid problems in the random number generation when the method is used with multiprocessing
     #time_range=2000 light curve length
@@ -88,7 +88,7 @@ def gen_lc_long(seed,time_range,dtime,mag,errmag,model,alpha,sampling,timesamp,n
     #alpha: for "unbroken" model is the value os beta (the other parameters are fixed),
     #for "slow" model is the alpha_hi value, the other parameters are fixed.
     #sampling: True if you are using the sampling of a given light curve. False if you whant a regularly sampled light curve
-    #timesamp: if sampling is True, timesamp is the array with the JDs of the desired light curve.
+    #timestamp: if sampling is True, timestamp is the array with the JDs of the desired light curve.
     tbase=36500
     dtbase=1
     t_drwbase=np.arange(0,tbase,dtbase)
@@ -105,9 +105,9 @@ def gen_lc_long(seed,time_range,dtime,mag,errmag,model,alpha,sampling,timesamp,n
 
     if sampling:
 
-        timesamp=np.round(timesamp,decimals=0).astype(np.int)
-        tstar = np.random.randint(14600,tbase-np.int((timesamp[-1]-timesamp[0])),size=1)
-        t_drw = tstar+((timesamp-timesamp[0]))
+        timestamp=np.round(timestamp,decimals=0).astype(np.int)
+        tstar = np.random.randint(14600,tbase-np.int((timestamp[-1]-timestamp[0])),size=1)
+        t_drw = tstar+((timestamp-timestamp[0]))
         #print t_drw
 
         y=y[t_drw]
@@ -136,7 +136,9 @@ def gen_lc_long(seed,time_range,dtime,mag,errmag,model,alpha,sampling,timesamp,n
 
 
 
-def gen_DRW_long(seed,time_range=2000,dtime=2,mag=19.5,errmag=0.03,tau=400,SFinf=0.2,sampling=False,timesamp=0.0):
+def gen_DRW_long(seed,time_range=2000,dtime=2,mag=19.5,errmag=0.03,tau=600,SFinf=0.3,sampling=False,timestamp=0.0):
+    # tau de 100 a 1000
+    # SFinf de 0.05 a 0.5
     #function to generate a light curve with a DRW model, for a given tau and sigma
     #seed: needed to avoid problems in the random number generation when the method is used with multiprocessing
     #recomended values:
@@ -147,7 +149,7 @@ def gen_DRW_long(seed,time_range=2000,dtime=2,mag=19.5,errmag=0.03,tau=400,SFinf
     #tau=400 tau for the DRW model
     #SFinf=0.2  amplitude of the variability at long time scales
     #sampling: True if you are using the sampling of a given light curve. False if you whant a regularly sampled light curve
-    #timesamp: if sampling is True, timesamp is the array with the JDs of the desired light curve.
+    #timestamp: if sampling is True, timestamp is the array with the JDs of the desired light curve.
     tbase=36500
     dtbase=1
     t_drwbase=np.arange(0,tbase,dtbase)
@@ -176,10 +178,10 @@ def gen_DRW_long(seed,time_range=2000,dtime=2,mag=19.5,errmag=0.03,tau=400,SFinf
 
     if sampling:
 
-        timesamp=np.round(timesamp,decimals=0).astype(np.int)
-        tstar = np.random.randint(14600,tbase-np.int((timesamp[-1]-timesamp[0])),size=1)
-        t_drw = tstar+((timesamp-timesamp[0]))
-        print t_drw
+        timestamp=np.round(timestamp,decimals=0).astype(np.int)
+        tstar = np.random.randint(14600,tbase-np.int((timestamp[-1]-timestamp[0])),size=1)
+        t_drw = tstar+((timestamp-timestamp[0]))
+        #print t_drw
 
         y=y[t_drw]
         ysig=ysig[t_drw]

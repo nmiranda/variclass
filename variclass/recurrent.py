@@ -6,7 +6,7 @@ from keras.optimizers import Adam
 class Recurrent(Model):
     """docstring for Recurrent"""
 
-    def __init__(self, max_jd, lstm_memory=2, input_dim=2, lstm_activation='tanh', dense_activation='sigmoid', lambda_loss=0.05):
+    def __init__(self, max_jd, lstm_memory=64, input_dim=2, lstm_activation='tanh', dense_activation='sigmoid', lambda_loss=0.05):
         
         # Init variables
         self.lstm_memory = lstm_memory

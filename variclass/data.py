@@ -6,11 +6,21 @@ import os
 import random
 from scipy import stats
 import lc_simulation
+import pickle
 
+FILENAME_ARR_FILE = 'filename_list'
 TIMES_ARR_FILE = 'jd_list'
 MAGS_ARR_FILE = 'q_list'
 MAGS_ERR_ARR_FILE = 'q_err_list'
 TYPES_ARR_FILE = 'type_list'
+
+def load_as_pickle(filename):
+    with open(filename, 'rb') as _input:
+        return pickle.load(_input)
+
+def save_as_pickle(data, filename):
+    with open(filename, 'wb') as output:
+        pickle.dump(data, output)
 
 def load_from_file(filename, single_list=False):
     with np.load(filename) as npzfile:
@@ -25,16 +35,17 @@ def save_to_file(filename, dataset, single_list=False):
     else:
         np.savez(filename, *dataset)
 
-def load(directory=None, subset_num=None, with_errors=False, sel_longest=None):
+def load(directory=None, subset_num=None, with_filenames=True, with_errors=True, sel_longest=None, prefix='clean'):
 
     if directory:
 
+        filename_list = list()
         jd_list = list()
         q_list = list()
         type_list = list()
         q_err_list =list() 
 
-        fits_files = glob.glob(os.path.join(directory, '*.fits'))
+        fits_files = glob.glob(os.path.join(directory, prefix + '*.fits'))
         for fits_file in fits_files:
             this_fits = pyfits.open(fits_file, memmap=False)
             try:
@@ -46,6 +57,11 @@ def load(directory=None, subset_num=None, with_errors=False, sel_longest=None):
             this_jd = this_data['JD']
             this_q = this_data['Q']
             this_err_q = this_data['errQ']
+
+            if with_filenames:
+                filename = os.path.basename(fits_file)
+                #filename = '.'.join(os.path.basename(fits_file).split('.')[:-1])
+                filename_list.append(filename)
 
             if this_header['TYPE_SPEC'].strip() == 'QSO':
                 type_list.append(1)
@@ -59,6 +75,8 @@ def load(directory=None, subset_num=None, with_errors=False, sel_longest=None):
 
             this_fits.close()
 
+        if with_filenames:
+            save_to_file(FILENAME_ARR_FILE, filename_list)
         save_to_file(TIMES_ARR_FILE, jd_list)
         save_to_file(MAGS_ARR_FILE, q_list)
         if with_errors:
@@ -66,6 +84,8 @@ def load(directory=None, subset_num=None, with_errors=False, sel_longest=None):
         save_to_file(TYPES_ARR_FILE, type_list, single_list=True)
         
     else:
+        if with_filenames:
+            filename_list = load_from_file(FILENAME_ARR_FILE + '.npz')
         jd_list = load_from_file(TIMES_ARR_FILE + '.npz')
         q_list = load_from_file(MAGS_ARR_FILE + '.npz')
         if with_errors:
@@ -121,62 +141,84 @@ def load(directory=None, subset_num=None, with_errors=False, sel_longest=None):
         q_list = [q_list[i] for i in selected_indexes]
         type_list = np.asarray([type_list[i] for i in selected_indexes])
 
+    return_list = list()
+    if with_filenames:
+        return_list.append(filename_list)
+    return_list.append(jd_list)
+    return_list.append(q_list)
     if with_errors:
-        return (jd_list, q_list, q_err_list, type_list)
+        return_list.append(q_err_list)
+    return_list.append(type_list)
 
-    return (jd_list, q_list, type_list)
+    return tuple(return_list)
 
-def simulate(num_samples):
+def simulate(num_samples, single_jd=None):
 
-    jd_list, q_list, q_err_list, type_list = load(with_errors=True)
+    if True:
+        sim_jd_list = load_as_pickle('sim_jd_list.pkl')
+        sim_q_list = load_as_pickle('sim_q_list.pkl')
+        sim_type_list = load_as_pickle('sim_type_list.pkl')
 
-    #num_samples = len(jd_list)
-    pos_type_idx = [x[0] for x in enumerate(type_list) if x[1] == 1]
-    neg_type_idx = [x[0] for x in enumerate(type_list) if x[1] == 1]
+        return sim_jd_list, sim_q_list, np.asarray(sim_type_list)
+
+    print "Simulating {} samples...".format(num_samples)
+
+    filename_list, jd_list, q_list, q_err_list, type_list = load(with_filenames=True, with_errors=True)
+
+    if single_jd:
+        # Searching for selected jd
+        i = 0
+        for filename in filename_list:
+            if filename == single_jd:
+                break
+            i += 1
+        selected_jd = jd_list[i]
 
     curr_sample_num = 0
-    pos_idx = 0
-    neg_idx = 0
 
-    synth_q_list = list()
-    synth_jd_list = list()
-    synth_type_list = list()
+    half_num_samples = num_samples/2
 
-    while True:
-        # QSO
-        this_jd = jd_list[pos_type_idx[pos_idx]] - jd_list[pos_type_idx[pos_idx]][0]
-        this_q = q_list[pos_type_idx[pos_idx]]
-        this_q_err = q_err_list[pos_type_idx[pos_idx]]
-        mean_mag = np.mean(this_q)
-        err_mag = np.mean(this_q_err)
-        err_nu = np.random.normal(10.0**-6, 10.0**-7)
-        synth_q = lc_simulation.gen_lc_long(0, 0, 0, mean_mag, err_mag, 'bending-pl', 2.7, True, this_jd, err_nu)
-        synth_q_list.append(synth_q[3])
-        synth_jd_list.append(this_jd)
-        synth_type_list.append(1)
+    synth_q_list_pos = list()
+    synth_jd_list_pos = list()
+    synth_type_list_pos = list()
+    for i in xrange(half_num_samples):
+        this_jd_pos = selected_jd - selected_jd[0]
+        this_q_pos = lc_simulation.gen_DRW_long(i, sampling=True, timestamp=this_jd_pos)[3]
+        synth_jd_list_pos.append(this_jd_pos)
+        synth_q_list_pos.append(this_q_pos)
+        synth_type_list_pos.append(1)
+
         curr_sample_num += 1
-        pos_idx += 1
+        if curr_sample_num % 200 == 0:
+            print "{} samples generated...".format(curr_sample_num)
 
-        # NON-QSO
-        this_jd = jd_list[neg_type_idx[neg_idx]] - jd_list[neg_type_idx[neg_idx]][0]
-        this_q = q_list[neg_type_idx[neg_idx]]
-        this_q_err = q_err_list[neg_type_idx[neg_idx]]
-        mean_mag = np.mean(this_q)
-        err_mag = np.mean(this_q_err)
-        synth_q = lc_simulation.gen_gaussian_noise(this_jd, mean_mag, err_mag)
-        synth_q_list.append(synth_q)
-        synth_jd_list.append(this_jd)
-        synth_type_list.append(0)
+    synth_q_list_neg = list()
+    synth_jd_list_neg = list()
+    synth_type_list_neg = list()
+    for i in xrange(len(synth_q_list_pos)):
+        this_jd_neg = selected_jd - selected_jd[0]
+        mean_mag = np.mean(synth_q_list_pos[i])
+        err_mag = np.std(synth_q_list_pos[i])
+        this_q_neg = lc_simulation.gen_gaussian_noise(this_jd_neg, mean_mag, err_mag)
+        synth_jd_list_neg.append(this_jd_neg)
+        synth_q_list_neg.append(this_q_neg)
+        synth_type_list_neg.append(0)
+
         curr_sample_num += 1
-        neg_idx += 1
+        if curr_sample_num % 200 == 0:
+            print "{} samples generated...".format(curr_sample_num)
 
-        if curr_sample_num >= num_samples:
-            break
 
-        if pos_idx == len(pos_type_idx):
-            pos_idx = 0
-        if neg_idx == len(neg_type_idx):
-            neg_idx = 0
+    synth_jd_list = synth_jd_list_pos + synth_jd_list_neg
+    synth_q_list = synth_q_list_pos + synth_q_list_neg
+    synth_type_list = synth_type_list_pos + synth_type_list_neg
+
+    print "Finished."
+
+    if True:
+        save_as_pickle(synth_jd_list, 'sim_jd_list.pkl')
+        save_as_pickle(synth_q_list, 'sim_q_list.pkl')
+        save_as_pickle(synth_type_list, 'sim_type_list.pkl')
 
     return synth_jd_list, synth_q_list, np.asarray(synth_type_list)
 

@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import itertools
 import numpy as np
 import os
+from scipy import stats
+import random
 
 stats_dir = os.path.join(os.pardir, os.pardir, 'data', 'results')
 
@@ -53,6 +55,36 @@ def confusion_matrix(cm, classes,
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     plt.savefig(os.path.join(stats_dir, model_name + '_conf_matrix_' + time_str + '.png'))
+
+def epoch_span(num_epochs, length):
+
+    slope, intercept, _, _, _ = stats.linregress(num_epochs, length)
+    print "Intercept: %s\nSlope: %s" % (intercept, slope)
+    x = np.linspace(0.0, 1500.0, num=5)
+
+    plt.plot(num_epochs, length, ".")
+    plt.plot(x, x*slope + intercept, color='black', linewidth=3)
+    plt.xlabel('Number of epochs')
+    plt.ylabel('Time span (days)')
+
+def plot_random(*args, **kwargs):
+
+    if len(args) == 3:
+
+        jd_list, q_list, type_list = args
+
+        while True:
+            index = random.randrange(len(jd_list))
+            if (kwargs['_type'] is not None) and (kwargs['_type'] != type_list[index]):
+                continue
+            break
+
+        print index
+
+        plt.plot(jd_list[index], q_list[index], "bs--")
+        plt.title("TYPE: {}".format(type_list[index]))
+        plt.xlabel('JD')
+        plt.ylabel('Q')
 
 def main():
 

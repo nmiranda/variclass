@@ -29,10 +29,6 @@ def main():
     # Model parameters
     input_dim = 2 # <----  dt, q(t-dt)
     input_dtype = 'float64'
-    lstm_memory = 64
-    lstm_activation = 'tanh'
-    dense_activation = "sigmoid"
-    lambda_loss=0.05
     batchsize = 32
     num_epochs = args.epochs
     stats_dir = os.path.join(os.pardir, os.pardir, 'data', 'results')
@@ -43,7 +39,7 @@ def main():
     if args.augment:
         jd_list, q_list, q_err_list, type_list = data.load(directory=args.dir, with_errors=True, sel_longest=args.top)
     elif args.simulate:
-        jd_list, q_list, type_list = data.simulate(args.simulate)
+        jd_list, q_list, type_list = data.simulate(args.simulate, single_jd='clean_morechip_150.245140_-0.023871_COSMOS.fits')
     else:
         jd_list, q_list, type_list = data.load(directory=args.dir, with_errors=False, sel_longest=args.top)
 
@@ -135,7 +131,7 @@ def main():
 
         else:
 
-            train_delta_jd, test_delta_jd, train_q_matrix, test_q_matrix, train_class_matrix, test_class_matrix = train_test_split(delta_jd_matrix, q_matrix, class_matrix, test_size=validation_ratio)
+            train_delta_jd, test_delta_jd, train_q_matrix, test_q_matrix, train_class_matrix, test_class_matrix = train_test_split(delta_jd_matrix, q_matrix, class_matrix, test_size=validation_ratio, stratify=class_matrix)
 
         if len(model.outputs) == 2:
 
@@ -171,6 +167,8 @@ def main():
             test_prev_q = test_q_matrix[:,:-1]
             test_X = np.stack((test_delta_jd, test_prev_q), axis=2)
             test_predict = model.predict(test_X)
+
+        #import ipdb;ipdb.set_trace()
 
         test_predict = np.reshape(test_predict, (test_predict.shape[0]))
         test_predict = 1.0*(test_predict > 0.5)
