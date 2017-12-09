@@ -16,6 +16,8 @@ class Convolutional(Model):
         self.dense_dim = dense_dim
         self.dense_activation = dense_activation
         self.model_optimizer = Adam()
+        self.inputs = None
+        self.outputs = None
 
         # Defining model
         # _input = Input(shape=(max_jd-1, input_dim))
@@ -30,9 +32,10 @@ class Convolutional(Model):
         # dense_1 = Dense(dense_dim)(flatten)
         # dropout_2 = Dropout(dropout_rate)(dense_1)
         # dense_2 = Dense(1, activation=dense_activation)(dropout_2)
+        self.init_model()
 
         #model = Model(inputs=[_input], outputs=[dense_2])
-        super(Convolutional, self).__init__(inputs=[_input], outputs=[dense_2])
+        super(Convolutional, self).__init__(inputs=self.inputs, outputs=self.outputs)
 
         #model_optimizer = SGD(lr=0.05)
 
@@ -51,6 +54,9 @@ class Convolutional(Model):
         dense_1 = Dense(self.dense_dim)(flatten)
         dropout_2 = Dropout(self.dropout_rate)(dense_1)
         dense_2 = Dense(1, activation=self.dense_activation)(dropout_2)
+
+        self.inputs = [_input]
+        self.outputs = [dense_2]
 
     def config_str(self):
 
