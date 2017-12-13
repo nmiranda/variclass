@@ -11,6 +11,7 @@ from sklearn.metrics import recall_score, confusion_matrix
 import plot
 from keras.utils import plot_model
 import pprint
+import json
 
 import sys
 sys.setrecursionlimit(10000)
@@ -76,8 +77,8 @@ def main():
     #model = convolutional.Convolutional(max_jd=max_jd, input_dim=input_dim, learning_rate=args.learning_rate)
     model = convolutional.Convolutional_v1(max_jd=max_jd, input_dim=input_dim, learning_rate=args.learning_rate)
 
-    if inner_validation
-:
+    if inner_validation:
+
         train_delta_jd = delta_jd_matrix
         train_q = q_matrix
         train_prev_q = train_q[:,:-1]
@@ -193,26 +194,50 @@ def main():
 
     model_name = str(model.__class__.__name__)
 
-    with open(os.path.join(stats_dir, model_name + '_' + start_time_str + '.txt'), 'w') as stats_file:
+    stats = dict()
+    stats['exec_time'] = total_time
+    stats['input_dim'] = input_dim
+    stats['inner_validation'] = inner_validation
+    stats['augment_factor'] = args.augment
+    stats['simulate_samples'] = args.simulate
+    stats['batch_size'] = batchsize
+    stats['num_epochs'] = num_epochs
+    stats['recall_score'] = rec_score
+    stats['select_top'] = args.top
+    stats['model_class'] = str(model.__class__)
+    stats['model_conf'] = model.config_dict()
 
-        stats_file.write("Execution time: " + str(total_time) + " seconds (" + str(total_time/60.0) + " minutes)\n")
-        stats_file.write("Input dimension: " + str(input_dim) + "\n")
-        stats_file.write("Inner validation: " + str(inner_validation) + "\n")
-        stats_file.write("Augment factor: " + str(args.augment) + "\n")
-        stats_file.write("Simulate samples: " + str(args.simulate) + "\n")
-        stats_file.write("Number of samples: " + str(num_samples) + "\n")
-        stats_file.write("Batch size: " + str(batchsize) + "\n")
-        stats_file.write("Num epochs: " + str(num_epochs) + "\n")
-        stats_file.write("Recall score: " + str(rec_score) + "\n")
-        stats_file.write("Select longest series: " + str(args.top) + "\n")
-        stats_file.write(model.config_str())
-        #stats_file.write("Model config: " + str(model.get_config()) + "\n")
-        stats_file.write("Model config: " + pprint.pformat(model.get_config()) + "\n")
-        stats_file.write("Confusion matrix: " + repr(cnf_matrix) + "\n")
-        stats_file.write(str(history.history) + "\n")
+    stats['cnf_matrix'] = cnf_matrix.tolist()
+    stats['history'] = history.history
+
+    #print json.dumps(stats, sort_keys=True, indent=4, separators=(',', ': '))
+
+    stats_file_path = os.path.join(stats_dir, model_name + '_' + start_time_str + '.json')
+    with open(stats_file_path, 'w') as stats_file:
+        json.dump(stats, stats_file, sort_keys=True, indent=4, separators=(',', ': '))
+    print "Saved config json file at \"{}\"".format(os.path.abspath(stats_file_path))
+
+    # with open(os.path.join(stats_dir, model_name + '_' + start_time_str + '.txt'), 'w') as stats_file:
+
+    #     stats_file.write("Execution time: " + str(total_time) + " seconds (" + str(total_time/60.0) + " minutes)\n")
+    #     stats_file.write("Input dimension: " + str(input_dim) + "\n")
+    #     stats_file.write("Inner validation: " + str(inner_validation) + "\n")
+    #     stats_file.write("Augment factor: " + str(args.augment) + "\n")
+    #     stats_file.write("Simulate samples: " + str(args.simulate) + "\n")
+    #     stats_file.write("Number of samples: " + str(num_samples) + "\n")
+    #     stats_file.write("Batch size: " + str(batchsize) + "\n")
+    #     stats_file.write("Num epochs: " + str(num_epochs) + "\n")
+    #     stats_file.write("Recall score: " + str(rec_score) + "\n")
+    #     stats_file.write("Select longest series: " + str(args.top) + "\n")
+    #     stats_file.write(model.config_str())
+    #     #stats_file.write("Model config: " + str(model.get_config()) + "\n")
+    #     stats_file.write("Model config: " + pprint.pformat(model.get_config()) + "\n")
+    #     stats_file.write("Confusion matrix: " + repr(cnf_matrix) + "\n")
+    #     stats_file.write(str(history.history) + "\n")
         
-
-    plot_model(model, os.path.join(stats_dir, model_name + '_model_' + start_time_str + '.png'))
+    model_plot_path = os.path.join(stats_dir, model_name + '_model_' + start_time_str + '.png')
+    plot_model(model, model_plot_path)
+    print "Saved model plot at \"{}\"".format(os.path.abspath(model_plot_path))
 
 if __name__ == '__main__':
     main()

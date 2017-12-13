@@ -71,6 +71,20 @@ class Convolutional(Model):
         "Model optimizer: " + str(self.model_optimizer.__class__()) + "\n" + \
         "Optimizer config: " + str(self.model_optimizer.get_config()) + "\n"
 
+    def config_dict(self):
+
+        this_conf = dict()
+        this_conf['conv_filters'] = self.conv_filters
+        this_conf['dense_activation'] = self.dense_activation
+        this_conf['dense_dim'] = self.dense_dim
+        this_conf['window_size'] = self.window_size
+        this_conf['dropout_rate'] = self.dropout_rate
+        this_conf['model_arch'] = self.get_config()
+        this_conf['learning_rate'] = learning_rate
+        this_conf['model_optimizer'] = str(self.model_optimizer.__class__)
+        this_conf['optimizer_config'] = self.model_optimizer.get_config()
+        return this_conf
+
 class Convolutional_v1(Convolutional):
     """docstring for Convolutional_v1"""
 

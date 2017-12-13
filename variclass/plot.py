@@ -30,11 +30,12 @@ def confusion_matrix(cm, classes,
     """
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        print("Normalized confusion matrix")
+        #print("Normalized confusion matrix")
     else:
-        print('Confusion matrix, without normalization')
+        #print('Confusion matrix, without normalization')
+        pass
 
-    print(cm)
+    #print(cm)
 
     plt.figure()
     plt.imshow(cm, interpolation='nearest', cmap=cmap)
@@ -54,7 +55,10 @@ def confusion_matrix(cm, classes,
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
-    plt.savefig(os.path.join(stats_dir, model_name + '_conf_matrix_' + time_str + '.png'))
+
+    conf_matrix_plot_path = os.path.join(stats_dir, model_name + '_conf_matrix_' + time_str + '.png')
+    plt.savefig(conf_matrix_plot_path)
+    print "Saved confusion matrix plot at \"{}\"".format(os.path.abspath(conf_matrix_plot_path))
 
 def epoch_span(num_epochs, length):
 
