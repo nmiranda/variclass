@@ -3,8 +3,8 @@ import argparse
 import os
 import data
 import numpy as np
-from recurrent import Recurrent
-from convolutional import Convolutional
+import recurrent
+import convolutional
 from sklearn.model_selection import train_test_split
 import time
 from sklearn.metrics import recall_score, confusion_matrix
@@ -24,10 +24,13 @@ def main():
     parser.add_argument("-a", '--augment', type=int)
     parser.add_argument("-e", '--epochs', type=int, default=25)
     parser.add_argument("-s", '--simulate', type=int)
+    parser.add_argument("-u", '--subset', type=int)
+    parser.add_argument("-l", '--learning_rate', type=float, default=0.0001)
     args = parser.parse_args()
 
     # Model parameters
     input_dim = 2 # <----  dt, q(t-dt)
+    #input_dim = 1
     input_dtype = 'float64'
     batchsize = 32
     num_epochs = args.epochs
@@ -39,7 +42,7 @@ def main():
     if args.augment:
         jd_list, q_list, q_err_list, type_list = data.load(directory=args.dir, with_errors=True, sel_longest=args.top)
     elif args.simulate:
-        jd_list, q_list, type_list = data.simulate(args.simulate, single_jd='clean_morechip_150.245140_-0.023871_COSMOS.fits')
+        jd_list, q_list, type_list = data.simulate(args.simulate, single_jd='clean_morechip_150.245140_-0.023871_COSMOS.fits', subset=args.subset)
     else:
         jd_list, q_list, type_list = data.load(directory=args.dir, with_errors=False, sel_longest=args.top)
 
@@ -69,10 +72,12 @@ def main():
 
     # Defining model
     #model = Recurrent(input_dim=input_dim, max_jd=max_jd)
-    model = Convolutional(max_jd=max_jd)
+    #model = recurrent.Recurrent_v0(input_dim=input_dim, max_jd=max_jd, learning_rate=args.learning_rate)
+    #model = convolutional.Convolutional(max_jd=max_jd, input_dim=input_dim, learning_rate=args.learning_rate)
+    model = convolutional.Convolutional_v1(max_jd=max_jd, input_dim=input_dim, learning_rate=args.learning_rate)
 
-    if inner_validation:
-
+    if inner_validation
+:
         train_delta_jd = delta_jd_matrix
         train_q = q_matrix
         train_prev_q = train_q[:,:-1]
@@ -155,7 +160,12 @@ def main():
         elif len(model.outputs) == 1:
 
             train_prev_q = train_q_matrix[:,:-1]
-            train_X = np.stack((train_delta_jd, train_prev_q), axis=2)
+            if input_dim == 1:
+                train_X = train_prev_q[..., np.newaxis]
+            elif input_dim == 2:
+                train_X = np.stack((train_delta_jd, train_prev_q), axis=2)
+
+            print model.model_optimizer.get_config()
 
             start_time = time.time()
             start_time_str = time.strftime('%Y%m%dT%H%M%S', time.gmtime(start_time))
@@ -165,10 +175,12 @@ def main():
             total_time = time.time() - start_time
 
             test_prev_q = test_q_matrix[:,:-1]
-            test_X = np.stack((test_delta_jd, test_prev_q), axis=2)
-            test_predict = model.predict(test_X)
+            if input_dim == 1:
+                test_X = test_prev_q[..., np.newaxis]
+            elif input_dim == 2:
+                test_X = np.stack((test_delta_jd, test_prev_q), axis=2)
 
-        #import ipdb;ipdb.set_trace()
+            test_predict = model.predict(test_X)
 
         test_predict = np.reshape(test_predict, (test_predict.shape[0]))
         test_predict = 1.0*(test_predict > 0.5)
@@ -184,6 +196,7 @@ def main():
     with open(os.path.join(stats_dir, model_name + '_' + start_time_str + '.txt'), 'w') as stats_file:
 
         stats_file.write("Execution time: " + str(total_time) + " seconds (" + str(total_time/60.0) + " minutes)\n")
+        stats_file.write("Input dimension: " + str(input_dim) + "\n")
         stats_file.write("Inner validation: " + str(inner_validation) + "\n")
         stats_file.write("Augment factor: " + str(args.augment) + "\n")
         stats_file.write("Simulate samples: " + str(args.simulate) + "\n")

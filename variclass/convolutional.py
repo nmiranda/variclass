@@ -1,11 +1,11 @@
 from keras.models import Model
-from keras.optimizers import Adam
+from keras import optimizers
 from keras.layers import Input, Conv1D, MaxPooling1D, Dropout, Flatten, Dense
 
 class Convolutional(Model):
     """docstring for Convolutional"""
 
-    def __init__(self, max_jd, input_dim=2, conv_filters=64, window_size=7, dropout_rate=0.25, dense_dim=64, dense_activation='sigmoid'):
+    def __init__(self, max_jd, input_dim=2, conv_filters=64, window_size=7, dropout_rate=0.25, dense_dim=64, dense_activation='sigmoid', learning_rate=0.0001):
 
         # Init variables
         self.max_jd = max_jd
@@ -15,9 +15,11 @@ class Convolutional(Model):
         self.dropout_rate = dropout_rate
         self.dense_dim = dense_dim
         self.dense_activation = dense_activation
-        self.model_optimizer = Adam()
+        self.model_optimizer = optimizers.Adam()
         self.inputs = None
         self.outputs = None
+        self.learning_rate = learning_rate
+        #self.model_optimizer = optimizers.SGD(lr=self.learning_rate)
 
         # Defining model
         # _input = Input(shape=(max_jd-1, input_dim))
@@ -51,7 +53,7 @@ class Convolutional(Model):
         max_pool_3 = MaxPooling1D(self.window_size)(conv_3)
         dropout_1 = Dropout(self.dropout_rate)(max_pool_3)
         flatten = Flatten()(dropout_1)
-        dense_1 = Dense(self.dense_dim)(flatten)
+        dense_1 = Dense(self.dense_dim, activation=self.dense_activation)(flatten)
         dropout_2 = Dropout(self.dropout_rate)(dense_1)
         dense_2 = Dense(1, activation=self.dense_activation)(dropout_2)
 
@@ -68,3 +70,25 @@ class Convolutional(Model):
         "Dropout rate: " + str(self.dropout_rate) + "\n" + \
         "Model optimizer: " + str(self.model_optimizer.__class__()) + "\n" + \
         "Optimizer config: " + str(self.model_optimizer.get_config()) + "\n"
+
+class Convolutional_v1(Convolutional):
+    """docstring for Convolutional_v1"""
+
+    # def __init__(self, arg):
+    #     super(Convolutional_v1, self).__init__()
+    #     self.arg = arg
+
+    def init_model(self):
+
+        self.conv_filters = 32
+        #self.model_optimizer = optimizers.SGD(lr=10)
+        self.model_optimizer = optimizers.SGD(lr=self.learning_rate)
+
+        _input = Input(shape=(self.max_jd-1, self.input_dim))
+        conv = Conv1D(self.conv_filters, self.window_size)(_input)
+        max_pool = MaxPooling1D(self.window_size)(conv)
+        flatten = Flatten()(max_pool)
+        dense = Dense(1, activation=self.dense_activation)(flatten)
+
+        self.inputs = [_input]
+        self.outputs = [dense]

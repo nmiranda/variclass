@@ -152,12 +152,26 @@ def load(directory=None, subset_num=None, with_filenames=True, with_errors=True,
 
     return tuple(return_list)
 
-def simulate(num_samples, single_jd=None):
+def simulate(num_samples, single_jd=None, subset=None):
 
     if True:
         sim_jd_list = load_as_pickle('sim_jd_list.pkl')
         sim_q_list = load_as_pickle('sim_q_list.pkl')
         sim_type_list = load_as_pickle('sim_type_list.pkl')
+
+        if subset:
+
+            sim_jd_list_pos = [sim_jd_list[i] for i, _type in enumerate(sim_type_list) if _type == 1]
+            sim_jd_list_neg = [sim_jd_list[i] for i, _type in enumerate(sim_type_list) if _type == 0]
+            sim_q_list_pos = [sim_q_list[i] for i, _type in enumerate(sim_type_list) if _type == 1]
+            sim_q_list_neg = [sim_q_list[i] for i, _type in enumerate(sim_type_list) if _type == 0]
+            sim_type_list_pos = [_type for _type in sim_type_list if _type == 1]
+            sim_type_list_neg = [_type for _type in sim_type_list if _type == 0]
+
+            half_subset = subset/2
+            sim_jd_list = sim_jd_list_pos[:half_subset] + sim_jd_list_neg[:half_subset]
+            sim_q_list = sim_q_list_pos[:half_subset] + sim_q_list_neg[:half_subset]
+            sim_type_list = sim_type_list_pos[:half_subset] + sim_type_list_neg[:half_subset]
 
         return sim_jd_list, sim_q_list, np.asarray(sim_type_list)
 
@@ -208,12 +222,11 @@ def simulate(num_samples, single_jd=None):
         if curr_sample_num % 200 == 0:
             print "{} samples generated...".format(curr_sample_num)
 
-
+    print "Finished."
+    
     synth_jd_list = synth_jd_list_pos + synth_jd_list_neg
     synth_q_list = synth_q_list_pos + synth_q_list_neg
     synth_type_list = synth_type_list_pos + synth_type_list_neg
-
-    print "Finished."
 
     if True:
         save_as_pickle(synth_jd_list, 'sim_jd_list.pkl')
