@@ -35,7 +35,7 @@ def save_to_file(filename, dataset, single_list=False):
     else:
         np.savez(filename, *dataset)
 
-def load(directory=None, subset_num=None, with_filenames=True, with_errors=True, sel_longest=None, prefix='clean'):
+def load(directory=None, subset_num=None, with_filenames=True, with_errors=True, sel_longest=None, prefix='clean', sel_timespan=None, sel_epochs=None):
 
     if directory:
 
@@ -63,10 +63,15 @@ def load(directory=None, subset_num=None, with_filenames=True, with_errors=True,
                 #filename = '.'.join(os.path.basename(fits_file).split('.')[:-1])
                 filename_list.append(filename)
 
-            if this_header['TYPE_SPEC'].strip() == 'QSO':
+            if 'TYPE_SPEC' in this_header:
+                if this_header['TYPE_SPEC'].strip() == 'QSO':
+                    type_list.append(1)
+                else:
+                    type_list.append(0)
+            elif 'SDSS_NAME' in this_header:
                 type_list.append(1)
             else:
-                type_list.append(0)
+                raise TypeError('No type')
 
             jd_list.append(this_jd)
             q_list.append(this_q)
@@ -141,6 +146,28 @@ def load(directory=None, subset_num=None, with_filenames=True, with_errors=True,
         q_list = [q_list[i] for i in selected_indexes]
         type_list = np.asarray([type_list[i] for i in selected_indexes])
 
+    if sel_timespan:
+        num_to_select = int(sel_timespan * len(jd_list))
+        timespans = [jd[-1] - jd[0] for jd in jd_list]
+        sorted_idx = np.argsort(timespans)[::-1]
+        sorted_idx = sorted_idx[:num_to_select]
+        filename_list = [filename_list[idx] for idx in sorted_idx]
+        jd_list = [jd_list[idx] for idx in sorted_idx]
+        q_list = [q_list[idx] for idx in sorted_idx]
+        q_err_list = [q_err_list[idx] for idx in sorted_idx]
+        type_list = [type_list[idx] for idx in sorted_idx]
+
+    if sel_epochs:
+        num_to_select = int(sel_timespan * len(jd_list))
+        epochs = [jd.shape[0] for jd in jd_list]
+        sorted_idx = np.argsort(epochs)[::-1]
+        sorted_idx = sorted_idx[:num_to_select]
+        filename_list = [filename_list[idx] for idx in sorted_idx]
+        jd_list = [jd_list[idx] for idx in sorted_idx]
+        q_list = [q_list[idx] for idx in sorted_idx]
+        q_err_list = [q_err_list[idx] for idx in sorted_idx]
+        type_list = [type_list[idx] for idx in sorted_idx]
+
     return_list = list()
     if with_filenames:
         return_list.append(filename_list)
@@ -152,32 +179,34 @@ def load(directory=None, subset_num=None, with_filenames=True, with_errors=True,
 
     return tuple(return_list)
 
-def simulate(num_samples, single_jd=None, subset=None):
+def simulate(num_samples, single_jd=None, sel_timespan=None, sel_epochs=None, load_cache=True, save_cache=False):
 
-    if True:
+    if load_cache:
         sim_jd_list = load_as_pickle('sim_jd_list.pkl')
         sim_q_list = load_as_pickle('sim_q_list.pkl')
         sim_type_list = load_as_pickle('sim_type_list.pkl')
 
-        if subset:
+        subset = num_samples
 
-            sim_jd_list_pos = [sim_jd_list[i] for i, _type in enumerate(sim_type_list) if _type == 1]
-            sim_jd_list_neg = [sim_jd_list[i] for i, _type in enumerate(sim_type_list) if _type == 0]
-            sim_q_list_pos = [sim_q_list[i] for i, _type in enumerate(sim_type_list) if _type == 1]
-            sim_q_list_neg = [sim_q_list[i] for i, _type in enumerate(sim_type_list) if _type == 0]
-            sim_type_list_pos = [_type for _type in sim_type_list if _type == 1]
-            sim_type_list_neg = [_type for _type in sim_type_list if _type == 0]
+        sim_jd_list_pos = [sim_jd_list[i] for i, _type in enumerate(sim_type_list) if _type == 1]
+        sim_jd_list_neg = [sim_jd_list[i] for i, _type in enumerate(sim_type_list) if _type == 0]
+        sim_q_list_pos = [sim_q_list[i] for i, _type in enumerate(sim_type_list) if _type == 1]
+        sim_q_list_neg = [sim_q_list[i] for i, _type in enumerate(sim_type_list) if _type == 0]
+        sim_type_list_pos = [_type for _type in sim_type_list if _type == 1]
+        sim_type_list_neg = [_type for _type in sim_type_list if _type == 0]
 
-            half_subset = subset/2
-            sim_jd_list = sim_jd_list_pos[:half_subset] + sim_jd_list_neg[:half_subset]
-            sim_q_list = sim_q_list_pos[:half_subset] + sim_q_list_neg[:half_subset]
-            sim_type_list = sim_type_list_pos[:half_subset] + sim_type_list_neg[:half_subset]
+        half_subset = subset/2
+        sim_jd_list = sim_jd_list_pos[:half_subset] + sim_jd_list_neg[:half_subset]
+        sim_q_list = sim_q_list_pos[:half_subset] + sim_q_list_neg[:half_subset]
+        sim_type_list = sim_type_list_pos[:half_subset] + sim_type_list_neg[:half_subset]
+
+        print "Loaded {} samples.".format(len(sim_jd_list))
 
         return sim_jd_list, sim_q_list, np.asarray(sim_type_list)
 
     print "Simulating {} samples...".format(num_samples)
 
-    filename_list, jd_list, q_list, q_err_list, type_list = load(with_filenames=True, with_errors=True)
+    filename_list, jd_list, q_list, q_err_list, type_list = load(with_filenames=True, with_errors=True, sel_timespan=None, sel_epochs=None)
 
     if single_jd:
         # Searching for selected jd
@@ -196,6 +225,8 @@ def simulate(num_samples, single_jd=None, subset=None):
     synth_jd_list_pos = list()
     synth_type_list_pos = list()
     for i in xrange(half_num_samples):
+        if not single_jd:
+            selected_jd = random.choice(jd_list)
         this_jd_pos = selected_jd - selected_jd[0]
         this_q_pos = lc_simulation.gen_DRW_long(i, sampling=True, timestamp=this_jd_pos)[3]
         synth_jd_list_pos.append(this_jd_pos)
@@ -210,6 +241,8 @@ def simulate(num_samples, single_jd=None, subset=None):
     synth_jd_list_neg = list()
     synth_type_list_neg = list()
     for i in xrange(len(synth_q_list_pos)):
+        if not single_jd:
+            selected_jd = random.choice(jd_list)
         this_jd_neg = selected_jd - selected_jd[0]
         mean_mag = np.mean(synth_q_list_pos[i])
         err_mag = np.std(synth_q_list_pos[i])
@@ -228,7 +261,7 @@ def simulate(num_samples, single_jd=None, subset=None):
     synth_q_list = synth_q_list_pos + synth_q_list_neg
     synth_type_list = synth_type_list_pos + synth_type_list_neg
 
-    if True:
+    if save_cache:
         save_as_pickle(synth_jd_list, 'sim_jd_list.pkl')
         save_as_pickle(synth_q_list, 'sim_q_list.pkl')
         save_as_pickle(synth_type_list, 'sim_type_list.pkl')

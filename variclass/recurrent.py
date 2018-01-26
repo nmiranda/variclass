@@ -75,6 +75,18 @@ class Recurrent(Model):
         "Optimizer: " + str(self.model_optimizer.__class__()) + "\n" + \
         "Optimizer config: " + str(self.model_optimizer.get_config()) + "\n"
 
+    def config_dict(self):
+
+        this_conf = dict()
+        this_conf['lstm_memory'] = self.lstm_memory
+        this_conf['lstm_activation'] = self.lstm_activation
+        this_conf['dense_activation'] = self.dense_activation
+        this_conf['lambda_loss'] = self.lambda_loss
+        this_conf['learning_rate'] = self.learning_rate
+        this_conf['model_optimizer'] = str(self.model_optimizer.__class__)
+        this_conf['optimizer_config'] = self.model_optimizer.get_config()
+        return this_conf
+
 class Recurrent_v1(Recurrent):
     """docstring for Recurrent_v1"""
 
@@ -90,7 +102,7 @@ class Recurrent_v1(Recurrent):
         _input = Input(shape=(self.max_jd-1, self.input_dim))
         lstm = LSTM(self.lstm_memory, return_sequences=True, activation=self.lstm_activation)(_input)
         select_predict = SelectPredict(lstm)
-        time_distributed = TimeDistributed(Dense(1), input_shape=(self.max_jd, self.lstm_memory))(select_predict)
+        time_distributed = TimeDistributed(Dense(1), input_shape=(self.max_jd, self.lstm_memory))(select_predict)   
         select_classify = SelectClassify(lstm)
         flatten = Flatten()(select_classify)
         dense = Dense(1, activation=self.dense_activation)(flatten)
@@ -108,9 +120,10 @@ class Recurrent_v0(Recurrent):
 
         # Model structure
         _input = Input(shape=(self.max_jd-1, self.input_dim))
-        lstm = LSTM(self.lstm_memory, activation=self.lstm_activation)(_input)
-        #flatten = Flatten()(lstm)
-        dense = Dense(1, activation=self.dense_activation)(lstm)
+        lstm_1 = LSTM(self.lstm_memory, return_sequences=True, activation=self.lstm_activation)(_input)
+        lstm_2 = LSTM(self.lstm_memory, return_sequences=True, activation=self.lstm_activation)(lstm_1)
+        flatten = Flatten()(lstm_2)
+        dense = Dense(1, activation=self.dense_activation)(flatten)
 
         self.inputs = [_input]
         self.outputs = [dense]

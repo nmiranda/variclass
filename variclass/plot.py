@@ -9,14 +9,15 @@ import random
 
 stats_dir = os.path.join(os.pardir, os.pardir, 'data', 'results')
 
-def learning_process(stats, time_str):
-    for loss_vals in stats.history.values():
+def learning_process(stats, title='Model loss', time_str=None, save=False):
+    for loss_vals in stats['history'].values():
         plt.plot(loss_vals)
-    plt.title('model loss')
+    plt.title(title)
     plt.ylabel('loss')
     plt.xlabel('epoch')
-    plt.legend(history.history.keys(), loc='best')
-    plt.savefig(os.path.join(stats_dir, 'lstm_' + time_str + '.png'))
+    plt.legend(stats['history'].keys(), loc='best')
+    if save:
+        plt.savefig(os.path.join(stats_dir, 'lstm_' + time_str + '.png'))
 
 def confusion_matrix(cm, classes,
                           normalize=False,
@@ -89,6 +90,16 @@ def plot_random(*args, **kwargs):
         plt.title("TYPE: {}".format(type_list[index]))
         plt.xlabel('JD')
         plt.ylabel('Q')
+
+def roc_curve(stats, title='ROC curve'):
+    plt.plot(stats['roc_fpr'], stats['roc_tpr'], color='darkorange', lw=2, label='ROC curve (area = {:0.2f})'.format(stats['roc_auc']))
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+    plt.legend(loc="lower right")
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title(title)
 
 def main():
 

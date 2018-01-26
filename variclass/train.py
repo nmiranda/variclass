@@ -7,7 +7,7 @@ import recurrent
 import convolutional
 from sklearn.model_selection import train_test_split
 import time
-from sklearn.metrics import recall_score, confusion_matrix
+from sklearn.metrics import recall_score, confusion_matrix, roc_curve, auc
 import plot
 from keras.utils import plot_model
 import pprint
@@ -25,8 +25,11 @@ def main():
     parser.add_argument("-a", '--augment', type=int)
     parser.add_argument("-e", '--epochs', type=int, default=25)
     parser.add_argument("-s", '--simulate', type=int)
+    parser.add_argument("-o", '--top_timespan', type=float)
+    parser.add_argument("-p", '--top_epochs', type=float)
     parser.add_argument("-u", '--subset', type=int)
-    parser.add_argument("-l", '--learning_rate', type=float, default=0.0001)
+    parser.add_argument("-l", '--learning_rate', type=float, default=0.001)
+    parser.add_argument("-m", '--model', required=True)
     args = parser.parse_args()
 
     # Model parameters
@@ -43,9 +46,10 @@ def main():
     if args.augment:
         jd_list, q_list, q_err_list, type_list = data.load(directory=args.dir, with_errors=True, sel_longest=args.top)
     elif args.simulate:
-        jd_list, q_list, type_list = data.simulate(args.simulate, single_jd='clean_morechip_150.245140_-0.023871_COSMOS.fits', subset=args.subset)
+        #jd_list, q_list, type_list = data.simulate(args.simulate, single_jd='clean_morechip_150.245140_-0.023871_COSMOS.fits', subset=args.subset)
+        jd_list, q_list, type_list = data.simulate(args.simulate, sel_timespan=args.top_timespan, sel_epochs=args.top_epochs)
     else:
-        jd_list, q_list, type_list = data.load(directory=args.dir, with_errors=False, sel_longest=args.top)
+        jd_list, q_list, type_list = data.load(directory=args.dir, with_errors=False, with_filenames=False, sel_longest=args.top)
 
     # Input data dimensions for matrix
     max_jd = max([x.shape[0] for x in jd_list])
@@ -75,38 +79,60 @@ def main():
     #model = Recurrent(input_dim=input_dim, max_jd=max_jd)
     #model = recurrent.Recurrent_v0(input_dim=input_dim, max_jd=max_jd, learning_rate=args.learning_rate)
     #model = convolutional.Convolutional(max_jd=max_jd, input_dim=input_dim, learning_rate=args.learning_rate)
-    model = convolutional.Convolutional_v1(max_jd=max_jd, input_dim=input_dim, learning_rate=args.learning_rate)
+    #model = convolutional.Convolutional_v1(max_jd=max_jd, input_dim=input_dim, learning_rate=args.learning_rate)
+
+    try:
+        model_class = getattr(convolutional, args.model)
+        model = model_class(max_jd=max_jd, input_dim=input_dim, learning_rate=args.learning_rate)
+    except AttributeError:
+        model_class = getattr(recurrent, args.model)
+        model = model_class(max_jd=max_jd, input_dim=input_dim, learning_rate=args.learning_rate)
 
     if inner_validation:
 
-        train_delta_jd = delta_jd_matrix
-        train_q = q_matrix
-        train_prev_q = train_q[:,:-1]
-        train_next_q = train_q[:,1:][..., np.newaxis]
-        train_class = class_matrix
+        if len(model.outputs) == 1:
 
-        train_X = np.stack((train_delta_jd, train_prev_q), axis=2)
+            prev_q = q_matrix[:,:-1]
+            input_X = np.stack((delta_jd_matrix, prev_q), axis=2)
 
-        start_time = time.time()
-        start_time_str = time.strftime('%Y%m%dT%H%M%S', time.gmtime(start_time))
-        history = model.fit(x=[train_X], y=[train_class, train_next_q], batch_size=batchsize, epochs=num_epochs, validation_split=validation_ratio)
-        total_time = time.time() - start_time
+            start_time = time.time()
+            start_time_str = time.strftime('%Y%m%dT%H%M%S', time.gmtime(start_time))
+            history = model.fit(x=[input_X], y=[class_matrix], batch_size=batchsize, epochs=num_epochs, validation_split=validation_ratio)
+            total_time = time.time() - start_time
 
-        # Evaluating model in the same training dataset (just for testing purposes)
-        test_dataset = train_X
+            # Evaluating model in the same training dataset (just for testing purposes)
+            test_dataset = input_X
+
+        elif len(model.outputs) == 2:
+
+            train_delta_jd = delta_jd_matrix
+            train_q = q_matrix
+            train_prev_q = train_q[:,:-1]
+            train_next_q = train_q[:,1:][..., np.newaxis]
+            train_class = class_matrix
+
+            train_X = np.stack((train_delta_jd, train_prev_q), axis=2)
+
+            start_time = time.time()
+            start_time_str = time.strftime('%Y%m%dT%H%M%S', time.gmtime(start_time))
+            history = model.fit(x=[train_X], y=[train_class, train_next_q], batch_size=batchsize, epochs=num_epochs, validation_split=validation_ratio)
+            total_time = time.time() - start_time
+
+            # Evaluating model in the same training dataset (just for testing purposes)
+            test_dataset = train_X
 
         #intermediate_output = intermediate_layer_model.predict(test_dataset)
         #import ipdb; ipdb.set_trace()
 
-        test_predict = model.predict(test_dataset)[0]
+        #test_predict = model.predict(test_dataset)[0]
 
-        test_predict = np.reshape(test_predict, (test_predict.shape[0]))
-        test_predict = 1.0*(test_predict > 0.5)
-        rec_score = recall_score(np.reshape(class_matrix.astype('int'), class_matrix.shape[0]), test_predict.astype('int'))
+        #test_predict = np.reshape(test_predict, (test_predict.shape[0]))
+        #test_predict = 1.0*(test_predict > 0.5)
+        #rec_score = recall_score(np.reshape(class_matrix.astype('int'), class_matrix.shape[0]), test_predict.astype('int'))
 
-        print("RECALL_SCORE:", rec_score)
+        #print("RECALL_SCORE:", rec_score)
 
-        plot.learning_process(history, start_time_str)
+        #plot.learning_process(history, start_time_str)
 
     else:
 
@@ -168,24 +194,27 @@ def main():
 
             print model.model_optimizer.get_config()
 
-            start_time = time.time()
-            start_time_str = time.strftime('%Y%m%dT%H%M%S', time.gmtime(start_time))
-
-            history = model.fit(x=[train_X], y=[train_class_matrix], batch_size=batchsize, epochs=num_epochs)
-
-            total_time = time.time() - start_time
-
             test_prev_q = test_q_matrix[:,:-1]
             if input_dim == 1:
                 test_X = test_prev_q[..., np.newaxis]
             elif input_dim == 2:
                 test_X = np.stack((test_delta_jd, test_prev_q), axis=2)
 
+            start_time = time.time()
+            start_time_str = time.strftime('%Y%m%dT%H%M%S', time.gmtime(start_time))
+            history = model.fit(x=[train_X], y=[train_class_matrix], batch_size=batchsize, epochs=num_epochs, validation_data=(test_X, test_class_matrix))
+            total_time = time.time() - start_time
+
             test_predict = model.predict(test_X)
 
         test_predict = np.reshape(test_predict, (test_predict.shape[0]))
+        test_class_matrix = np.reshape(test_class_matrix, test_class_matrix.shape[0])
+
+        fpr, tpr, _ = roc_curve(test_class_matrix, test_predict)
+        this_auc = auc(fpr, tpr)
+
         test_predict = 1.0*(test_predict > 0.5)
-        rec_score = recall_score(np.reshape(test_class_matrix.astype('int'), test_class_matrix.shape[0]), test_predict.astype('int'))
+        rec_score = recall_score(test_class_matrix.astype('int'), test_predict.astype('int'))
 
         print("RECALL_SCORE:", rec_score)
 
@@ -202,12 +231,15 @@ def main():
     stats['simulate_samples'] = args.simulate
     stats['batch_size'] = batchsize
     stats['num_epochs'] = num_epochs
-    stats['recall_score'] = rec_score
     stats['select_top'] = args.top
     stats['model_class'] = str(model.__class__)
     stats['model_conf'] = model.config_dict()
-
-    stats['cnf_matrix'] = cnf_matrix.tolist()
+    if not inner_validation:
+        stats['roc_fpr'] = fpr.tolist()
+        stats['roc_tpr'] = tpr.tolist()
+        stats['roc_auc'] = this_auc
+        stats['recall_score'] = rec_score
+        stats['cnf_matrix'] = cnf_matrix.tolist()
     stats['history'] = history.history
 
     #print json.dumps(stats, sort_keys=True, indent=4, separators=(',', ': '))
