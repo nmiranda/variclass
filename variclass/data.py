@@ -200,11 +200,11 @@ def simulate(num_samples, single_jd=None, sel_timespan=None, sel_epochs=None, lo
         sim_q_list = sim_q_list_pos[:half_subset] + sim_q_list_neg[:half_subset]
         sim_type_list = sim_type_list_pos[:half_subset] + sim_type_list_neg[:half_subset]
 
-        print "Loaded {} samples.".format(len(sim_jd_list))
+        print("Loaded {} samples.".format(len(sim_jd_list)))
 
         return sim_jd_list, sim_q_list, np.asarray(sim_type_list)
 
-    print "Simulating {} samples...".format(num_samples)
+    print("Simulating {} samples...".format(num_samples))
 
     filename_list, jd_list, q_list, q_err_list, type_list = load(with_filenames=True, with_errors=True, sel_timespan=None, sel_epochs=None)
 
@@ -235,7 +235,7 @@ def simulate(num_samples, single_jd=None, sel_timespan=None, sel_epochs=None, lo
 
         curr_sample_num += 1
         if curr_sample_num % 200 == 0:
-            print "{} samples generated...".format(curr_sample_num)
+            print("{} samples generated...".format(curr_sample_num))
 
     synth_q_list_neg = list()
     synth_jd_list_neg = list()
@@ -253,9 +253,9 @@ def simulate(num_samples, single_jd=None, sel_timespan=None, sel_epochs=None, lo
 
         curr_sample_num += 1
         if curr_sample_num % 200 == 0:
-            print "{} samples generated...".format(curr_sample_num)
+            print("{} samples generated...".format(curr_sample_num))
 
-    print "Finished."
+    print("Finished.")
     
     synth_jd_list = synth_jd_list_pos + synth_jd_list_neg
     synth_q_list = synth_q_list_pos + synth_q_list_neg
