@@ -9,14 +9,18 @@ import random
 
 stats_dir = os.path.join(os.pardir, os.pardir, 'data', 'results')
 
-def learning_process(stats, title='Model loss', time_str=None, save=False, from_epoch=1):
-    for loss_vals in stats['history'].values():
+def learning_process(stats, title='Model loss', time_str=None, save=False, from_epoch=1, filter=None):
+    keys = list()
+    for name, loss_vals in stats['history'].items():
+        if filter and not (filter in name):
+            continue
+        keys.append(name)
         plt.plot(range(from_epoch,len(loss_vals)+1), loss_vals[from_epoch-1:])
     plt.title(title)
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.xlim(xmin=from_epoch)
-    plt.legend(stats['history'].keys(), loc='best')
+    plt.legend(keys, loc='best')
     if save:
         plt.savefig(os.path.join(stats_dir, 'lstm_' + time_str + '.png'))
 
@@ -60,12 +64,12 @@ def confusion_matrix(cm, classes,
 
     conf_matrix_plot_path = os.path.join(stats_dir, model_name + '_conf_matrix_' + time_str + '.png')
     plt.savefig(conf_matrix_plot_path)
-    print "Saved confusion matrix plot at \"{}\"".format(os.path.abspath(conf_matrix_plot_path))
+    print("Saved confusion matrix plot at \"{}\"".format(os.path.abspath(conf_matrix_plot_path)))
 
 def epoch_span(num_epochs, length):
 
     slope, intercept, _, _, _ = stats.linregress(num_epochs, length)
-    print "Intercept: %s\nSlope: %s" % (intercept, slope)
+    print("Intercept: %s\nSlope: %s" % (intercept, slope))
     x = np.linspace(0.0, 1500.0, num=5)
 
     plt.plot(num_epochs, length, ".")
@@ -85,7 +89,7 @@ def plot_random(*args, **kwargs):
                 continue
             break
 
-        print index
+        print(index)
 
         plt.plot(jd_list[index], q_list[index], "bs--")
         plt.title("TYPE: {}".format(type_list[index]))
