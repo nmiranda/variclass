@@ -171,16 +171,14 @@ def main():
             train_next_q = train_q_matrix[:,1:][..., np.newaxis]
             train_X = np.stack((train_delta_jd, train_prev_q), axis=2)
 
-            start_time = time.time()
-            start_time_str = time.strftime('%Y%m%dT%H%M%S', time.gmtime(start_time))
-        
-            history = model.fit(x=[train_X], y=[train_class_matrix, train_next_q], batch_size=batchsize, epochs=num_epochs)
-
-            total_time = time.time() - start_time
-        
             test_prev_q = test_q_matrix[:,:-1]
             test_next_q = test_q_matrix[:,1:][..., np.newaxis]
             test_X = np.stack((test_delta_jd, test_prev_q), axis=2)
+
+            start_time = time.time()
+            start_time_str = time.strftime('%Y%m%dT%H%M%S', time.gmtime(start_time))
+            history = model.fit(x=[train_X], y=[train_class_matrix, train_next_q], batch_size=batchsize, epochs=num_epochs, validation_data=([test_X], [test_class_matrix, test_next_q]))
+            total_time = time.time() - start_time
 
             test_predict = model.predict(test_X)[0]
 
@@ -192,7 +190,7 @@ def main():
             elif input_dim == 2:
                 train_X = np.stack((train_delta_jd, train_prev_q), axis=2)
 
-            print model.model_optimizer.get_config()
+            print(model.model_optimizer.get_config())
 
             test_prev_q = test_q_matrix[:,:-1]
             if input_dim == 1:
@@ -247,7 +245,7 @@ def main():
     stats_file_path = os.path.join(stats_dir, model_name + '_' + start_time_str + '.json')
     with open(stats_file_path, 'w') as stats_file:
         json.dump(stats, stats_file, sort_keys=True, indent=4, separators=(',', ': '))
-    print "Saved config json file at \"{}\"".format(os.path.abspath(stats_file_path))
+    print("Saved config json file at \"{}\"".format(os.path.abspath(stats_file_path)))
 
     # with open(os.path.join(stats_dir, model_name + '_' + start_time_str + '.txt'), 'w') as stats_file:
 
@@ -269,7 +267,7 @@ def main():
         
     model_plot_path = os.path.join(stats_dir, model_name + '_model_' + start_time_str + '.png')
     plot_model(model, model_plot_path)
-    print "Saved model plot at \"{}\"".format(os.path.abspath(model_plot_path))
+    print("Saved model plot at \"{}\"".format(os.path.abspath(model_plot_path)))
 
 if __name__ == '__main__':
     main()

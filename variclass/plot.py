@@ -9,12 +9,13 @@ import random
 
 stats_dir = os.path.join(os.pardir, os.pardir, 'data', 'results')
 
-def learning_process(stats, title='Model loss', time_str=None, save=False):
+def learning_process(stats, title='Model loss', time_str=None, save=False, from_epoch=1):
     for loss_vals in stats['history'].values():
-        plt.plot(loss_vals)
+        plt.plot(range(from_epoch,len(loss_vals)+1), loss_vals[from_epoch-1:])
     plt.title(title)
     plt.ylabel('loss')
     plt.xlabel('epoch')
+    plt.xlim(xmin=from_epoch)
     plt.legend(stats['history'].keys(), loc='best')
     if save:
         plt.savefig(os.path.join(stats_dir, 'lstm_' + time_str + '.png'))
