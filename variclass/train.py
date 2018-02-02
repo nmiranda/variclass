@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 import argparse
 import os
+os.environ['MKL_NUM_THREADS'] = '16'
+os.environ['GOTO_NUM_THREADS'] = '16'
+os.environ['OMP_NUM_THREADS'] = '16'
+os.environ['openmp'] = 'True'
 import data
 import numpy as np
 import recurrent
@@ -16,6 +20,10 @@ import json
 import sys
 sys.setrecursionlimit(10000)
 
+def check_range(parser, value):
+    if value and (value < 0.0 or value > 1.0):
+        parser.error('Value should be between 0.0 and 1.0. Got {}'.format(value))
+
 def main():
 
     parser = argparse.ArgumentParser()
@@ -28,9 +36,16 @@ def main():
     parser.add_argument("-o", '--top_timespan', type=float)
     parser.add_argument("-p", '--top_epochs', type=float)
     parser.add_argument("-u", '--subset', type=int)
-    parser.add_argument("-l", '--learning_rate', type=float, default=0.001)
+    parser.add_argument("-l", '--learning_rate', type=float, default=0.0001)
     parser.add_argument("-m", '--model', required=True)
+    parser.add_argument("-g", "--single_jd", action='store_true')
+    parser.add_argument("-f", "--conv_filters", type=int, default=64)
+    parser.add_argument("-r", "--memory_nodes", type=int, default=32)
+    parser.add_argument("-w", "--window_size", type=int, default=7)
     args = parser.parse_args()
+
+    check_range(parser, args.top_timespan)
+    check_range(parser, args.top_epochs)
 
     # Model parameters
     input_dim = 2 # <----  dt, q(t-dt)
@@ -46,10 +61,14 @@ def main():
     if args.augment:
         jd_list, q_list, q_err_list, type_list = data.load(directory=args.dir, with_errors=True, sel_longest=args.top)
     elif args.simulate:
-        #jd_list, q_list, type_list = data.simulate(args.simulate, single_jd='clean_morechip_150.245140_-0.023871_COSMOS.fits', subset=args.subset)
-        jd_list, q_list, type_list = data.simulate(args.simulate, sel_timespan=args.top_timespan, sel_epochs=args.top_epochs)
+        if args.single_jd:
+            jd_list, q_list, type_list = data.simulate(args.simulate, single_jd='clean_morechip_150.245140_-0.023871_COSMOS.fits')
+        else:
+            jd_list, q_list, type_list = data.simulate(args.simulate, sel_timespan=args.top_timespan, sel_epochs=args.top_epochs)
     else:
-        jd_list, q_list, type_list = data.load(directory=args.dir, with_errors=False, with_filenames=False, sel_longest=args.top)
+        filename_list, jd_list, q_list, q_err_list, type_list = data.load(directory=args.dir, with_errors=True, with_filenames=True, sel_longest=args.top, sel_timespan=args.top_timespan, sel_epochs=args.top_epochs)
+
+    exit()
 
     # Input data dimensions for matrix
     max_jd = max([x.shape[0] for x in jd_list])
@@ -83,10 +102,10 @@ def main():
 
     try:
         model_class = getattr(convolutional, args.model)
-        model = model_class(max_jd=max_jd, input_dim=input_dim, learning_rate=args.learning_rate)
+        model = model_class(max_jd=max_jd, input_dim=input_dim, learning_rate=args.learning_rate, conv_filters=args.conv_filters, window_size=args.window_size)
     except AttributeError:
         model_class = getattr(recurrent, args.model)
-        model = model_class(max_jd=max_jd, input_dim=input_dim, learning_rate=args.learning_rate)
+        model = model_class(max_jd=max_jd, input_dim=input_dim, learning_rate=args.learning_rate, lstm_memory=args.memory_nodes)
 
     if inner_validation:
 
@@ -232,6 +251,12 @@ def main():
     stats['select_top'] = args.top
     stats['model_class'] = str(model.__class__)
     stats['model_conf'] = model.config_dict()
+    stats['top_timespan'] = args.top_timespan
+    stats['top_epochs'] = args.top_epochs
+    stats['single_jd'] = args.single_jd
+    stats['conv_filters'] = args.conv_filters
+    stats['memory_nodes'] = args.memory_nodes
+    stats['window_size'] = args.window_size
     if not inner_validation:
         stats['roc_fpr'] = fpr.tolist()
         stats['roc_tpr'] = tpr.tolist()

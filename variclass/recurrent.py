@@ -6,7 +6,7 @@ from keras import optimizers
 class Recurrent(Model):
     """docstring for Recurrent"""
 
-    def __init__(self, max_jd, lstm_memory=64, input_dim=2, lstm_activation='tanh', dense_activation='sigmoid', lambda_loss=0.05, learning_rate=0.0001):
+    def __init__(self, max_jd, lstm_memory=32, input_dim=2, lstm_activation='tanh', dense_activation='sigmoid', lambda_loss=0.0005, learning_rate=0.0001):
         
         # Init variables
         self.lstm_memory = lstm_memory
@@ -16,7 +16,7 @@ class Recurrent(Model):
         self.dense_activation = dense_activation
         self.lambda_loss = lambda_loss
         self.learning_rate = learning_rate
-        self.model_optimizer = optimizers.Adam()
+        self.model_optimizer = optimizers.Adam(lr=self.learning_rate)
 
         self.inputs = None
         self.outputs = None
@@ -42,7 +42,7 @@ class Recurrent(Model):
             self.loss = ["binary_crossentropy"]
         elif len(self.outputs) == 2:
             self.loss = ["binary_crossentropy", "mean_squared_error"]
-            loss_weights=[1.0, lambda_loss]
+            self.loss_weights=[1.0, lambda_loss]
 
         self.compile(optimizer=self.model_optimizer, loss=self.loss, loss_weights=self.loss_weights, metrics=['accuracy'])
 
@@ -92,7 +92,7 @@ class Recurrent_v1(Recurrent):
 
     def init_model(self):
 
-        self.lstm_memory = 64
+        #self.lstm_memory = 64
 
         # Classification and prediction selection custom layers
         SelectPredict = Lambda(lambda x: x[:, :, :self.lstm_memory/2], output_shape=lambda shape: (shape[0], shape[1], self.lstm_memory/2))
@@ -115,8 +115,8 @@ class Recurrent_v0(Recurrent):
 
     def init_model(self):
 
-        self.lstm_memory = 32
-        self.model_optimizer = optimizers.SGD(lr=self.learning_rate)
+        #self.lstm_memory = 32
+        #self.model_optimizer = optimizers.SGD(lr=self.learning_rate)
 
         # Model structure
         _input = Input(shape=(self.max_jd-1, self.input_dim))

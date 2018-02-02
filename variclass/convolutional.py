@@ -5,7 +5,7 @@ from keras.layers import Input, Conv1D, MaxPooling1D, Dropout, Flatten, Dense
 class Convolutional(Model):
     """docstring for Convolutional"""
 
-    def __init__(self, max_jd, input_dim=2, conv_filters=64, window_size=9, dropout_rate=0.25, dense_dim=64, dense_activation='sigmoid', learning_rate=0.001):
+    def __init__(self, max_jd, input_dim=2, conv_filters=64, window_size=7, dropout_rate=0.25, dense_dim=64, dense_activation='sigmoid', learning_rate=0.0001):
 
         # Init variables
         self.max_jd = max_jd
@@ -15,9 +15,9 @@ class Convolutional(Model):
         self.dropout_rate = dropout_rate
         self.dense_dim = dense_dim
         self.dense_activation = dense_activation
-        #self.model_optimizer = optimizers.Adam()
         self.learning_rate = learning_rate
-        self.model_optimizer = optimizers.SGD(lr=self.learning_rate)
+        self.model_optimizer = optimizers.Adam(lr=self.learning_rate)
+        #self.model_optimizer = optimizers.SGD(lr=self.learning_rate)
         self.inputs = None
         self.outputs = None
         #self.model_optimizer = optimizers.SGD(lr=self.learning_rate)
@@ -169,8 +169,10 @@ class Convolutional_v3(Convolutional):
     def init_model(self):
 
         #self.conv_filters = 32
-        #self.model_optimizer = optimizers.SGD(lr=10)
+        #self.model_optimizer = optimizers.SGD(lr=0.0001)
         #self.model_optimizer = optimizers.SGD(lr=self.learning_rate)
+
+        print self.max_jd
 
         _input = Input(shape=(self.max_jd-1, self.input_dim))
         conv_1 = Conv1D(self.conv_filters, self.window_size)(_input)

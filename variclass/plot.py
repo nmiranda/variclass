@@ -6,23 +6,46 @@ import numpy as np
 import os
 from scipy import stats
 import random
+import json
+import stats as st
 
 stats_dir = os.path.join(os.pardir, os.pardir, 'data', 'results')
 
-def learning_process(stats, title='Model loss', time_str=None, save=False, from_epoch=1, filter=None):
-    keys = list()
-    for name, loss_vals in stats['history'].items():
-        if filter and not (filter in name):
+# def learning_process(stats, title='Model loss', time_str=None, save=False, from_epoch=1, filter=None):
+#     keys = list()
+#     for name, loss_vals in stats['history'].items():
+#         if filter and not (filter in name):
+#             continue
+#         keys.append(name)
+#         plt.plot(range(from_epoch,len(loss_vals)+1), loss_vals[from_epoch-1:])
+#     plt.title(title)
+#     plt.ylabel('loss')
+#     plt.xlabel('epoch')
+#     plt.xlim(xmin=from_epoch)
+#     plt.legend(keys, loc='best')
+#     if save:
+#         plt.savefig(os.path.join(stats_dir, 'lstm_' + time_str + '.png'))
+
+def learning_process(files, title='Learning process', _filter=None):
+    stats_list = list()
+    for file in files:
+        with open(file, 'r') as stats_file:
+            stats_list.append(json.load(stats_file))
+    history_list = [stats['history'] for stats in stats_list]
+    keys = history_list[0].keys()
+    final_keys = list()
+    for key in keys:
+        if _filter and not (_filter in key):
             continue
-        keys.append(name)
-        plt.plot(range(from_epoch,len(loss_vals)+1), loss_vals[from_epoch-1:])
+        this_plot = np.array([history[key] for history in history_list])
+        plt.plot(range(1,26), this_plot.mean(axis=0))
+        final_keys.append(key)
+        #plt.errorbar(range(1,26), this_plot.mean(axis=0), this_plot.std(axis=0), capsize=5)
     plt.title(title)
     plt.ylabel('loss')
     plt.xlabel('epoch')
-    plt.xlim(xmin=from_epoch)
-    plt.legend(keys, loc='best')
-    if save:
-        plt.savefig(os.path.join(stats_dir, 'lstm_' + time_str + '.png'))
+    plt.legend(final_keys, loc='best')
+
 
 def confusion_matrix(cm, classes,
                           normalize=False,
@@ -96,14 +119,48 @@ def plot_random(*args, **kwargs):
         plt.xlabel('JD')
         plt.ylabel('Q')
 
-def roc_curve(stats, title='ROC curve'):
+def roc_curve(filename, title='ROC curve'):
+    with open(filename, 'r') as stats_file:
+        stats = json.load(stats_file)
     plt.plot(stats['roc_fpr'], stats['roc_tpr'], color='darkorange', lw=2, label='ROC curve (area = {:0.2f})'.format(stats['roc_auc']))
     plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
     plt.legend(loc="lower right")
-    plt.xlim([0.0, 1.0])
+    plt.xlim([-0.05, 1.0])
     plt.ylim([0.0, 1.05])
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
+    plt.title(title)
+
+def scores(json_files, key, title="Scores", min_val=None, max_val=None, x_vals=None, xlabel='', ffor=None):
+    stats_list = list()
+    for json_file in json_files:
+        with open(json_file, 'r') as json_file:
+            stats_list.append(json.load(json_file))
+    if x_vals:
+        x_vals = x_vals
+    else:
+        try:
+            x_vals = [stats[key] for stats in stats_list]
+        except KeyError:
+            print("In model conf")
+            x_vals = [stats['model_conf'][key] for stats in stats_list]
+        if min_val is not None:
+            x_vals[0] = min_val
+        if max_val is not None:
+            x_vals[-1] = max_val
+    conf_matrix_list = [stats['cnf_matrix'] for stats in stats_list]
+    f1_score, mcc, jstat = st.get_scores(conf_matrix_list)
+    roc_auc = [stats['roc_auc'] for stats in stats_list]
+    if ffor:
+        for y_vals in [f1_score, mcc, jstat, roc_auc]:
+            y_vals[ffor[0]] = y_vals[ffor[0]] + ffor[1]
+    plt.plot(x_vals, f1_score, 'o-')
+    plt.plot(x_vals, mcc, 'o-')
+    plt.plot(x_vals, jstat, 'o-')
+    plt.plot(x_vals, roc_auc, 'o-')
+    plt.ylabel('score')
+    plt.xlabel(xlabel)
+    plt.legend(['F1 score', 'MCC', 'J statistic', 'ROC AUC'], loc='best')
     plt.title(title)
 
 def main():

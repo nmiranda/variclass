@@ -35,6 +35,12 @@ def save_to_file(filename, dataset, single_list=False):
     else:
         np.savez(filename, *dataset)
 
+def search_for_filename(filename_list, single_jd):
+    for idx, filename in enumerate(filename_list):
+        if filename == single_jd:
+            return idx
+    raise ValueError('Filename \"{}\" not found.'.format(single_jd))
+
 def load(directory=None, subset_num=None, with_filenames=True, with_errors=True, sel_longest=None, prefix='clean', sel_timespan=None, sel_epochs=None):
 
     if directory:
@@ -158,7 +164,7 @@ def load(directory=None, subset_num=None, with_filenames=True, with_errors=True,
         type_list = [type_list[idx] for idx in sorted_idx]
 
     if sel_epochs:
-        num_to_select = int(sel_timespan * len(jd_list))
+        num_to_select = int(sel_epochs * len(jd_list))
         epochs = [jd.shape[0] for jd in jd_list]
         sorted_idx = np.argsort(epochs)[::-1]
         sorted_idx = sorted_idx[:num_to_select]
@@ -175,16 +181,29 @@ def load(directory=None, subset_num=None, with_filenames=True, with_errors=True,
     return_list.append(q_list)
     if with_errors:
         return_list.append(q_err_list)
-    return_list.append(type_list)
+    return_list.append(np.asarray(type_list))
 
     return tuple(return_list)
 
-def simulate(num_samples, single_jd=None, sel_timespan=None, sel_epochs=None, load_cache=True, save_cache=False):
+def simulate(num_samples, single_jd=None, sel_timespan=None, sel_epochs=None, load_cache=False, save_cache=True):
+
+    if not (sel_timespan or sel_epochs or single_jd):
+        jd_filename = 'sim_jd_list.pkl'
+        q_filename = 'sim_q_list.pkl'
+        type_filename = 'sim_type_list.pkl'
+    elif single_jd:
+        jd_filename = 'sim_jd_list_single.pkl'
+        q_filename = 'sim_q_list_single.pkl'
+        type_filename = 'sim_type_list_single.pkl'
+    else:
+        jd_filename = 'sim_jd_list_long_' + str(sel_timespan) + '_' + str(sel_epochs) + '.pkl'
+        q_filename = 'sim_q_list_long_' + str(sel_timespan) + '_' + str(sel_epochs) + '.pkl'
+        type_filename = 'sim_type_list_long_' + str(sel_timespan) + '_' + str(sel_epochs) + '.pkl'
 
     if load_cache:
-        sim_jd_list = load_as_pickle('sim_jd_list.pkl')
-        sim_q_list = load_as_pickle('sim_q_list.pkl')
-        sim_type_list = load_as_pickle('sim_type_list.pkl')
+        sim_jd_list = load_as_pickle(jd_filename)
+        sim_q_list = load_as_pickle(q_filename)
+        sim_type_list = load_as_pickle(type_filename)
 
         subset = num_samples
 
@@ -206,16 +225,12 @@ def simulate(num_samples, single_jd=None, sel_timespan=None, sel_epochs=None, lo
 
     print("Simulating {} samples...".format(num_samples))
 
-    filename_list, jd_list, q_list, q_err_list, type_list = load(with_filenames=True, with_errors=True, sel_timespan=None, sel_epochs=None)
+    filename_list, jd_list, q_list, q_err_list, type_list = load(with_filenames=True, with_errors=True, sel_timespan=sel_timespan, sel_epochs=sel_epochs)
 
     if single_jd:
         # Searching for selected jd
-        i = 0
-        for filename in filename_list:
-            if filename == single_jd:
-                break
-            i += 1
-        selected_jd = jd_list[i]
+        sel_index = search_for_filename(filename_list, single_jd)
+        selected_jd = jd_list[sel_index]
 
     curr_sample_num = 0
 
@@ -262,9 +277,9 @@ def simulate(num_samples, single_jd=None, sel_timespan=None, sel_epochs=None, lo
     synth_type_list = synth_type_list_pos + synth_type_list_neg
 
     if save_cache:
-        save_as_pickle(synth_jd_list, 'sim_jd_list.pkl')
-        save_as_pickle(synth_q_list, 'sim_q_list.pkl')
-        save_as_pickle(synth_type_list, 'sim_type_list.pkl')
+        save_as_pickle(synth_jd_list, jd_filename)
+        save_as_pickle(synth_q_list, q_filename)
+        save_as_pickle(synth_type_list, type_filename)
 
     return synth_jd_list, synth_q_list, np.asarray(synth_type_list)
 
