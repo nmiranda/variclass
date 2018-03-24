@@ -68,7 +68,7 @@ def main():
     else:
         filename_list, jd_list, q_list, q_err_list, type_list = data.load(directory=args.dir, with_errors=True, with_filenames=True, sel_longest=args.top, sel_timespan=args.top_timespan, sel_epochs=args.top_epochs)
 
-    exit()
+    #exit()
 
     # Input data dimensions for matrix
     max_jd = max([x.shape[0] for x in jd_list])

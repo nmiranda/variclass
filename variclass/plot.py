@@ -26,7 +26,7 @@ stats_dir = os.path.join(os.pardir, os.pardir, 'data', 'results')
 #     if save:
 #         plt.savefig(os.path.join(stats_dir, 'lstm_' + time_str + '.png'))
 
-def learning_process(files, title='Learning process', _filter=None):
+def learning_process(files, title='Learning process', _filter=None, y_lim=(0.0,1.1)):
     stats_list = list()
     for file in files:
         with open(file, 'r') as stats_file:
@@ -42,8 +42,9 @@ def learning_process(files, title='Learning process', _filter=None):
         final_keys.append(key)
         #plt.errorbar(range(1,26), this_plot.mean(axis=0), this_plot.std(axis=0), capsize=5)
     plt.title(title)
-    plt.ylabel('loss')
+    plt.ylabel('value')
     plt.xlabel('epoch')
+    plt.ylim(y_lim)
     plt.legend(final_keys, loc='best')
 
 
@@ -160,7 +161,20 @@ def scores(json_files, key, title="Scores", min_val=None, max_val=None, x_vals=N
     plt.plot(x_vals, roc_auc, 'o-')
     plt.ylabel('score')
     plt.xlabel(xlabel)
+    plt.ylim(ymax=1.1)
     plt.legend(['F1 score', 'MCC', 'J statistic', 'ROC AUC'], loc='best')
+    plt.title(title)
+
+def exec_times(json_files, title="Execution times"):
+    stats_list = list()
+    for json_file in json_files:
+        with open(json_file, 'r') as json_file:
+            stats_list.append(json.load(json_file))
+    x_vals = [stats['simulate_samples'] for stats in stats_list]
+    y_vals = [stats['exec_time'] for stats in stats_list]
+    plt.plot(x_vals, y_vals, 'o-')
+    plt.ylabel('Execution time [s]')
+    plt.xlabel('Number of samples')
     plt.title(title)
 
 def main():

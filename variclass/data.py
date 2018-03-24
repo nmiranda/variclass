@@ -185,7 +185,7 @@ def load(directory=None, subset_num=None, with_filenames=True, with_errors=True,
 
     return tuple(return_list)
 
-def simulate(num_samples, single_jd=None, sel_timespan=None, sel_epochs=None, load_cache=False, save_cache=True):
+def simulate(num_samples, single_jd=None, sel_timespan=None, sel_epochs=None, load_cache=True, save_cache=False):
 
     if not (sel_timespan or sel_epochs or single_jd):
         jd_filename = 'sim_jd_list.pkl'
@@ -199,6 +199,8 @@ def simulate(num_samples, single_jd=None, sel_timespan=None, sel_epochs=None, lo
         jd_filename = 'sim_jd_list_long_' + str(sel_timespan) + '_' + str(sel_epochs) + '.pkl'
         q_filename = 'sim_q_list_long_' + str(sel_timespan) + '_' + str(sel_epochs) + '.pkl'
         type_filename = 'sim_type_list_long_' + str(sel_timespan) + '_' + str(sel_epochs) + '.pkl'
+
+    #import ipdb.set_trace()
 
     if load_cache:
         sim_jd_list = load_as_pickle(jd_filename)
