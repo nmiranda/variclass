@@ -9,36 +9,36 @@ import pandas as pd
 import glob
 import argparse
 import inspect
-import P4J
-from pgram_func2 import get_period_sigf
-from pathos.multiprocessing import ProcessingPool as Pool
-import carmcmc as cm
+#import P4J
+#from pgram_func2 import get_period_sigf
+#from pathos.multiprocessing import ProcessingPool as Pool
+#import carmcmc as cm
 import itertools
 import time
 import wavelets
 
 # Lista de features a guardar
 feature_list = [
-    'ZSPEC',
+    #'ZSPEC',
     'TYPE',
-    'Mean',
+    #'Mean',
     'Std',
     'Meanvariance',
-    'MedianBRP',
-    'Rcs',
-    'PeriodLS',
-    'Period_fit',
+    #'MedianBRP',
+    #'Rcs',
+    #'PeriodLS',
+    #'Period_fit',
     #'Color',
-    'Autocor_length',
+    #'Autocor_length',
     #'SlottedA_length',
-    'StetsonK',
+    #'StetsonK',
     #'StetsonK_AC',
-    'Eta_e',
+    #'Eta_e',
     'Amplitude',
     'PercentAmplitude',
-    'Con',
+    #'Con',
     'LinearTrend',
-    'Beyond1Std',
+    #'Beyond1Std',
     #'FluxPercentileRatioMid20',
     #'FluxPercentileRatioMid35',
     #'FluxPercentileRatioMid50',
@@ -46,32 +46,35 @@ feature_list = [
     #'FluxPercentileRatioMid80',
     #'PercentDifferenceFluxPercentile',
     'Q31',
-    'CAR_sigma',
-    'CAR_mean',
-    'CAR_tau',
-    'A_mcmc',
-    'A_mcmc_err_inf',
-    'A_mcmc_err_sup',
-    'gamma_mcmc',
-    'gamma_mcmc_err_inf',
-    'gamma_mcmc_err_sup',
-    'p_var',
-    'ex_var',
-    'ex_verr',
-    'wmcc_bestperiod', 
-    'wmcc_bestfreq',
-    'pg_best_period', 
-    'pg_peak', 
-    'pg_sig5', 
-    'pg_sig1',
-    'tau_mc', 
-    'tau_mc_inf_err',
-    'tau_mc_sup_err',
-    'sigma_mc',
-    'sigma_mc_inf_err',
-    'sigma_mc_sup_err',
+    #'CAR_sigma',
+    #'CAR_mean',
+    #'CAR_tau',
+    ##'A_mcmc',
+    #'A_mcmc_err_inf',
+    #'A_mcmc_err_sup',
+    ##'gamma_mcmc',
+    #'gamma_mcmc_err_inf',
+    #'gamma_mcmc_err_sup',
+    ##'p_var',
+    ##'ex_var',
+    #'ex_verr',
+    #'wmcc_bestperiod', 
+    #'wmcc_bestfreq',
+    #'pg_best_period', 
+    #'pg_peak', 
+    #'pg_sig5', 
+    #'pg_sig1',
+    #'tau_mc', 
+    #'tau_mc_inf_err',
+    #'tau_mc_sup_err',
+    ##'sigma_mc',
+    #'sigma_mc_inf_err',
+    #'sigma_mc_sup_err',
     'wave_coef',
     'wave_tau',
+    'g-r',
+    'r-i',
+    'i-z',
 ]
 
 
@@ -281,7 +284,7 @@ class FeatureData(object):
     
     def __init__(self, filename):
         self.features = dict()
-	self.filename = filename
+        self.filename = filename
         try:
             self.store = pd.read_csv(filename)
         except IOError:
@@ -328,26 +331,39 @@ def load_from_fits(fits_file, args):
        raise ValueError("FITS file \"{}\" data does not contain specified keys. Please check.".format(fits_file)) 
     this_lc.ra = fits_header['ALPHA']
     this_lc.dec = fits_header['DELTA']
-    try:
-        this_lc.zspec = fits_header[args.z_tag]
-    except KeyError:
-        pass
-    try:
-        this_lc.obj_type = fits_header[args.type]
-    except KeyError:
-        pass
-    try:
-        this_lc.features['u'] = fits_header['U']
-        this_lc.features['g'] = fits_header['G']
-        this_lc.features['r'] = fits_header['R']
-        this_lc.features['i'] = fits_header['I']
-        this_lc.features['z'] = fits_header['Z']
-        this_lc.features['u-g'] = fits_header['U'] - fits_header['G']
-        this_lc.features['g-r'] = fits_header['G'] - fits_header['R']
-        this_lc.features['r-i'] = fits_header['R'] - fits_header['I']
-        this_lc.features['i-z'] = fits_header['I'] - fits_header['Z']
-    except KeyError:
-        pass
+
+    # try:
+    #     this_lc.zspec = fits_header[args.z_tag]
+    # except KeyError:
+    #     pass
+    # try:
+    #     this_lc.obj_type = fits_header[args.type]
+    # except KeyError:
+    #     pass
+    # try:
+    #     this_lc.features['u'] = fits_header['U']
+    #     this_lc.features['g'] = fits_header['G']
+    #     this_lc.features['r'] = fits_header['R']
+    #     this_lc.features['i'] = fits_header['I']
+    #     this_lc.features['z'] = fits_header['Z']
+    #     this_lc.features['u-g'] = fits_header['U'] - fits_header['G']
+    #     this_lc.features['g-r'] = fits_header['G'] - fits_header['R']
+    #     this_lc.features['r-i'] = fits_header['R'] - fits_header['I']
+    #     this_lc.features['i-z'] = fits_header['I'] - fits_header['Z']
+    # except KeyError:
+    #     pass
+    this_lc.zspec = fits_header[args.z_tag]
+    this_lc.obj_type = fits_header['TYPE_SPEC']
+    this_lc.features['u'] = fits_header['UMAG']
+    this_lc.features['g'] = fits_header['GMAG']
+    this_lc.features['r'] = fits_header['RMAG']
+    this_lc.features['i'] = fits_header['IMAG']
+    this_lc.features['z'] = fits_header['ZMAG']
+    this_lc.features['u-g'] = fits_header['UMAG'] - fits_header['GMAG']
+    this_lc.features['g-r'] = fits_header['GMAG'] - fits_header['RMAG']
+    this_lc.features['r-i'] = fits_header['RMAG'] - fits_header['IMAG']
+    this_lc.features['i-z'] = fits_header['IMAG'] - fits_header['ZMAG']
+
     return this_lc
 
 def curves_from_dir(args):
@@ -361,7 +377,7 @@ def curves_from_dir(args):
         print "Reading file [%d/%d] \"%s\"" % (index, len(files), fits_file)
         try:
             fits_list.append(load_from_fits(fits_file, args))
-        except ValueError as e:
+        except (ValueError, KeyError), e:
             print e
     print "Done"
     if not fits_list:
@@ -393,10 +409,10 @@ def main():
 
     method_classes = [
         FATSMethod,
-        MCMCMethod,
-        P4JMethod,
-        PeriodgramMethod,
-        CARMCMCMethod,
+        ##MCMCMethod,
+        #P4JMethod,
+        #PeriodgramMethod,
+        #CARMCMCMethod,
         WaveletsMethod
     ]
 

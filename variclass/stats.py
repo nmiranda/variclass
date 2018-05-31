@@ -8,6 +8,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def get_scores(cm):
+    try:
+        len(cm[0][0])
+    except TypeError:
+        cm = [cm]
     tp = [float(np.asarray(arr)[1,1]) for arr in cm]    
     tn = [float(np.asarray(arr)[0,0]) for arr in cm]
     fp = [float(np.asarray(arr)[0,1]) for arr in cm]
@@ -22,7 +26,14 @@ def get_scores(cm):
     f1_score = (2 * precision * recall) / (precision + recall)
     mcc = (tp*tn-fp*fn) / ((tp+fp)*(tp+fn)*(tn+fp)*(tn+fn))**0.5
     j_stat = recall + specificity - 1
-    return f1_score, mcc, j_stat
+    scores = {
+        "precision": precision,
+        "recall": recall,
+        "f1_score": f1_score,
+        "mcc": mcc,
+        "j_stat": j_stat,
+    }
+    return scores
 
 def main():
 	parser = argparse.ArgumentParser()

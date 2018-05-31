@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import matplotlib
 matplotlib.use('Agg')
 import argparse
@@ -16,24 +18,24 @@ import datetime
 
 feature_list = [
     #'ZSPEC',
-    'Mean',
+    #'Mean',
     'Std',
     'Meanvariance',
-    'MedianBRP',
-    'Rcs',
-    'PeriodLS',
-    'Period_fit',
+    #'MedianBRP',
+    #'Rcs',
+    #'PeriodLS',
+    #'Period_fit',
     #'Color',
-    'Autocor_length',
+    #'Autocor_length',
     #'SlottedA_length',
-    'StetsonK',
+    #'StetsonK',
     #'StetsonK_AC',
-    'Eta_e',
+    #'Eta_e',
     'Amplitude',
     'PercentAmplitude',
     #'Con',
     'LinearTrend',
-    'Beyond1Std',
+    #'Beyond1Std',
     #'FluxPercentileRatioMid20',
     #'FluxPercentileRatioMid35',
     #'FluxPercentileRatioMid50',
@@ -44,48 +46,48 @@ feature_list = [
     #'CAR_sigma',
     #'CAR_mean',
     #'CAR_tau',
-    'A_mcmc',
+    ##'A_mcmc',
     #'A_mcmc_err_inf',
     #'A_mcmc_err_sup',
-    'gamma_mcmc',
+    ##'gamma_mcmc',
     #'gamma_mcmc_err_inf',
     #'gamma_mcmc_err_sup',
-    'p_var',
-    'ex_var',
+    ##'p_var',
+    ##'ex_var',
     #'ex_verr',
     #'wmcc_bestperiod',
     #'wmcc_bestfreq',
-    'pg_best_period',
+    #'pg_best_period',
     #'pg_peak',
     #'pg_sig5',
     #'pg_sig1',
-    'tau_mc',
+    #'tau_mc',
     #'tau_mc_inf_err',
     #'tau_mc_sup_err',
-    'sigma_mc',
+    ##'sigma_mc',
     #'sigma_mc_inf_err',
     #'sigma_mc_sup_err',
     'wave_coef',
     'wave_tau',
-    'u',
+    #'u',
     #'ERR_u',
-    'g',
+    #'g',
     #'ERR_g',
-    'r',
+    #'r',
     #'ERR_r',
-    'i',
+    #'i',
     #'ERR_i',
-    'z',
+    #'z',
     #'ERR_z',
     #'zspec',
     #'zspec_err',
     #'class',
     #'subClass',
-    'u_g',
-    'g_r',
-    'r_i',
-    'i_z',
-    'diff_exvar',
+    #'u_g',
+    'g-r',
+    'r-i',
+    'i-z',
+    #'diff_exvar',
     ]
 
 def tag_qso(label):
@@ -141,31 +143,48 @@ def main():
         training_X = scaler.transform(training_X)
 
         if args.svm:
-            param_grid = {'kernel': ['linear'], 'C': [1, 10, 100, 1000]}
+            param_grid = {'kernel': ['rbf'], 'C': [1, 10, 100, 1000]}
             model = svm.SVC(class_weight='balanced', probability=True)
         elif args.rforest:
             param_grid = {'max_depth': [3, None], 'bootstrap': [True, False], 'criterion': ['gini', 'entropy']}
             model = ensemble.RandomForestClassifier(class_weight='balanced', n_jobs=args.ncores)
 
+        X_train, X_test, y_train, y_test = model_selection.train_test_split(training_X, training_Y, test_size=0.3)
 
-        inner_cv = model_selection.KFold(shuffle=True)
-        outer_cv = model_selection.KFold(shuffle=True)
+        # inner_cv = model_selection.KFold(shuffle=True)
+        # outer_cv = model_selection.KFold(shuffle=True)
 
-        modeselektor = model_selection.GridSearchCV(estimator=model, param_grid=param_grid, cv=inner_cv, n_jobs=args.ncores)
-        modeselektor.fit(training_X, training_Y)
+        # modeselektor = model_selection.GridSearchCV(estimator=model, param_grid=param_grid, cv=inner_cv, n_jobs=args.ncores)
+        # modeselektor.fit(training_X, training_Y)
+
+        modeselektor = model_selection.GridSearchCV(estimator=model, param_grid=param_grid, cv=5, n_jobs=args.ncores)
+        modeselektor.fit(X_train, y_train)
 
         print "Model selected: \"%s\"" % modeselektor.best_estimator_
 
-        f1_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='f1').mean()
-        accuracy_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='accuracy').mean()
-        neg_log_loss_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='neg_log_loss').mean()
-        precision_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='precision').mean()
-        recall_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='recall').mean()
-        roc_auc_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='roc_auc').mean()
+        # f1_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='f1').mean()
+        # accuracy_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='accuracy').mean()
+        # neg_log_loss_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='neg_log_loss').mean()
+        # precision_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='precision').mean()
+        # recall_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='recall').mean()
+        # roc_auc_score = model_selection.cross_val_score(modeselektor, X=training_X, y=training_Y, cv=outer_cv, n_jobs=args.ncores, scoring='roc_auc').mean()
+
+        y_true, y_pred = y_test, modeselektor.predict(X_test)
+        try:
+            y_score = modeselektor.decision_function(X_test)
+        except AttributeError:
+            y_score = modeselektor.predict_proba(X_test)[:,1]
+
+        f1_score = metrics.f1_score(y_true, y_pred)
+        accuracy_score = metrics.accuracy_score(y_true, y_pred)
+        precision_score = metrics.precision_score(y_true, y_pred)
+        recall_score = metrics.recall_score(y_true, y_pred)
+        roc_auc_score = metrics.roc_auc_score(y_true, y_score)
+
         scores = {
             'f1': f1_score,
             'accuracy': accuracy_score,
-            'neg_log_loss': neg_log_loss_score,
+            # 'neg_log_loss': neg_log_loss_score,
             'precision_score': precision_score,
             'recall_score': recall_score,
             'roc_auc_score': roc_auc_score,
@@ -184,13 +203,15 @@ def main():
                 pickle.dump(model_dump, pickle_file)
 
         if args.confusion:
-            y_pred = modeselektor.predict(training_X)
-            cnf_matrix = metrics.confusion_matrix(training_Y, y_pred)
+            #y_pred = modeselektor.predict(training_X)
+            #cnf_matrix = metrics.confusion_matrix(training_Y, y_pred)
+            cnf_matrix = metrics.confusion_matrix(y_true, y_pred)
             np.set_printoptions(precision=2)
 
             plt.figure()
             plt.imshow(cnf_matrix, interpolation='nearest', cmap=plt.cm.Blues)
-            plt.title("Confusion matrix for QSO classification")
+            #plt.title("Confusion matrix for QSO classification")
+            plt.title(u"Matriz de Confusión para Clasificación de QSO")
             plt.colorbar()
             tick_marks = np.arange(len(label_encoder.classes_))
             plt.xticks(tick_marks, label_encoder.classes_, rotation=45)
@@ -204,8 +225,8 @@ def main():
                 plt.text(j, i, cnf_matrix[i, j], horizontalalignment="center", color="white" if cnf_matrix[i, j] > thresh else "black")
 
             plt.tight_layout()
-            plt.ylabel('True label')
-            plt.xlabel('Predicted label')
+            plt.ylabel(u'Categoría verdadera')
+            plt.xlabel(u'Categoría predicha')
 
             timestamp = "{:%Y%m%d%H%M%S}".format(datetime.datetime.now())
             cnf_matrix_file = "confusion_matrix_%s.png" % timestamp
@@ -231,17 +252,24 @@ def main():
             for key, value in scores.items():
                 stats_file.write("Classification score \"%s\": %f\n" % (key, value))
             stats_file.write("\n")
+            """
             stats_file.write("Ranking of feature relevance for classification:\n")
             feature_relevance = list()
+            feat_rel_val = None
             if args.svm:
-                feat_rel_val = modeselektor.best_estimator_.coef_.tolist()[0]
+                try:
+                    feat_rel_val = modeselektor.best_estimator_.coef_.tolist()[0]
+                except AttributeError, e:
+                    print e
             elif args.rforest:
                 feat_rel_val = modeselektor.best_estimator_.feature_importances_
-            for feature, score in zip(features, feat_rel_val):
-                feature_relevance.append((feature, abs(score)))
-            feature_relevance.sort(key=lambda x: x[1], reverse=True)
-            for feature, score in feature_relevance:
-                stats_file.write("%s: %s\n" % (feature, score))
+            if feat_rel_val:
+                for feature, score in zip(features, feat_rel_val):
+                    feature_relevance.append((feature, abs(score)))
+                feature_relevance.sort(key=lambda x: x[1], reverse=True)
+                for feature, score in feature_relevance:
+                    stats_file.write("%s: %s\n" % (feature, score))
+            """
                 
     else:
         for key, value in scores.items():
@@ -249,15 +277,20 @@ def main():
         print ""
         print "Ranking of feature relevance for classification:"
         feature_relevance = list()
+        feat_rel_val = None
         if args.svm:
-            feat_rel_val = modeselektor.best_estimator_.coef_.tolist()[0]
+            try:
+                feat_rel_val = modeselektor.best_estimator_.coef_.tolist()[0]
+            except AttributeError, e:
+                print e
         elif args.rforest:
             feat_rel_val = modeselektor.best_estimator_.feature_importances_
-        for feature, score in zip(features, feat_rel_val):
-            feature_relevance.append((feature, abs(score)))
-        feature_relevance.sort(key=lambda x: x[1], reverse=True)
-        for feature, score in feature_relevance:
-            print "%s: %s" % (feature, score)
+        if feat_rel_val:
+            for feature, score in zip(features, feat_rel_val):
+                feature_relevance.append((feature, abs(score)))
+            feature_relevance.sort(key=lambda x: x[1], reverse=True)
+            for feature, score in feature_relevance:
+                print "%s: %s" % (feature, score)
 
     if args.test:
         if not args.output:

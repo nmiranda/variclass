@@ -38,13 +38,14 @@ def learning_process(files, title='Learning process', _filter=None, y_lim=(0.0,1
         if _filter and not (_filter in key):
             continue
         this_plot = np.array([history[key] for history in history_list])
-        plt.plot(range(1,26), this_plot.mean(axis=0))
+        plt.plot(range(1,this_plot.shape[1]+1), this_plot.mean(axis=0))
         final_keys.append(key)
         #plt.errorbar(range(1,26), this_plot.mean(axis=0), this_plot.std(axis=0), capsize=5)
     plt.title(title)
     plt.ylabel('value')
-    plt.xlabel('epoch')
-    plt.ylim(y_lim)
+    plt.xlabel('iteration')
+    if y_lim:
+        plt.ylim(y_lim)
     plt.legend(final_keys, loc='best')
 
 
@@ -115,7 +116,7 @@ def plot_random(*args, **kwargs):
 
         print(index)
 
-        plt.plot(jd_list[index], q_list[index], "bs--")
+        plt.plot(jd_list[index], q_list[index], kwargs['fmt'])
         plt.title("TYPE: {}".format(type_list[index]))
         plt.xlabel('JD')
         plt.ylabel('Q')
@@ -162,19 +163,22 @@ def scores(json_files, key, title="Scores", min_val=None, max_val=None, x_vals=N
     plt.ylabel('score')
     plt.xlabel(xlabel)
     plt.ylim(ymax=1.1)
+    plt.ylim(ymin=-1.0)
     plt.legend(['F1 score', 'MCC', 'J statistic', 'ROC AUC'], loc='best')
     plt.title(title)
 
-def exec_times(json_files, title="Execution times"):
-    stats_list = list()
-    for json_file in json_files:
-        with open(json_file, 'r') as json_file:
-            stats_list.append(json.load(json_file))
-    x_vals = [stats['simulate_samples'] for stats in stats_list]
-    y_vals = [stats['exec_time'] for stats in stats_list]
-    plt.plot(x_vals, y_vals, 'o-')
+def exec_times(json_files_list, title="Execution times"):
+    for json_files in json_files_list:
+        stats_list = list()
+        for json_file in json_files:
+            with open(json_file, 'r') as json_file:
+                stats_list.append(json.load(json_file))
+        x_vals = [stats['simulate_samples'] for stats in stats_list]
+        y_vals = [stats['exec_time'] for stats in stats_list]
+        plt.plot(x_vals, y_vals, 'o-')
     plt.ylabel('Execution time [s]')
     plt.xlabel('Number of samples')
+    plt.legend(['CNN1', 'CNN2', 'CNN3', 'RNN1', 'RNN2'], loc='best')
     plt.title(title)
 
 def main():
